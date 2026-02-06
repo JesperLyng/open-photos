@@ -1,0 +1,100 @@
+#root {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.subtitle {
+  margin: 0.25rem 0 0;
+  color: #777;
+}
+
+.card {
+  padding: 1.5rem;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+}
+
+.stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.button {
+  border: 1px solid #1a73e8;
+  background: #1a73e8;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button.ghost {
+  border-color: #ddd;
+  background: #fff;
+  color: #333;
+}
+
+.badge {
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  border: 1px solid #ddd;
+  background: #f6f6f6;
+}
+
+.badge.authenticated {
+  border-color: #2e7d32;
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.badge.loading {
+  border-color: #ffb300;
+  background: #fff8e1;
+  color: #ff8f00;
+}
+
+.badge.anonymous {
+  border-color: #90a4ae;
+  background: #eceff1;
+  color: #546e7a;
+}
+
+.badge.error {
+  border-color: #c62828;
+  background: #ffebee;
+  color: #c62828;
+}
+
+pre {
+  text-align: left;
+  background: #f7f7f7;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.error {
+  color: #c62828;
+}
+
+.muted {
+  color: #777;
+  font-size: 0.9rem;
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@open-photos/types",
+  "version": "1.0.0",
+  "description": "Shared types and DTOs for Open Photos.",
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module"
+}
