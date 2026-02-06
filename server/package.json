@@ -2,10 +2,11 @@
   "name": "server",
   "version": "1.0.0",
   "description": "Node.js API and background workers.",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "dev": "node --watch src/index.js",
-    "start": "node src/index.js",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
     "lint": "eslint ."
   },
   "keywords": [],

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { getUser, handleCallback, login, logout, signup } from "./auth/oidc.js";
+import { useEffect, useState, type ChangeEvent } from "react";
+import { getUser, handleCallback, login, logout, signup } from "./auth/oidc";
 import "./App.css";
 
 function App() {
@@ -33,7 +33,7 @@ function App() {
         }
       } catch (err) {
         if (isMounted) {
-          setAuth({ status: "error", error: err.message });
+          setAuth({ status: "error", error: (err as Error).message });
         }
       }
     }
@@ -72,7 +72,7 @@ function App() {
         }
       } catch (err) {
         if (isMounted) {
-          setMe({ status: "error", error: err.message });
+          setMe({ status: "error", error: (err as Error).message });
         }
       }
     }
@@ -113,7 +113,7 @@ function App() {
         }
       } catch (err) {
         if (isMounted) {
-          setLibrary({ status: "error", items: [], error: err.message });
+          setLibrary({ status: "error", items: [], error: (err as Error).message });
         }
       }
     }
@@ -125,7 +125,7 @@ function App() {
     };
   }, [auth]);
 
-  async function handleUpload(event) {
+  async function handleUpload(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
     if (files.length === 0 || auth.status !== "authenticated") return;
 
@@ -207,7 +207,7 @@ function App() {
         setLibrary({ status: "ok", items: data.items || [], nextCursor: data.nextCursor });
       }
     } catch (err) {
-      setUpload({ status: "error", error: err.message });
+      setUpload({ status: "error", error: (err as Error).message });
     }
   }
 

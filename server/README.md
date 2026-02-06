@@ -4,6 +4,7 @@ Node.js API and background workers.
 
 ## Scripts
 - `npm run dev`
+- `npm run build`
 - `npm run start`
 
 ## Environment
