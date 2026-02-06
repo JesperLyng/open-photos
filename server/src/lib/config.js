@@ -14,4 +14,9 @@ export const config = {
   oidcJwksUri:
     process.env.OIDC_JWKS_URI ||
     "http://localhost:8080/realms/open-photos/protocol/openid-connect/certs",
+  s3Endpoint: process.env.S3_ENDPOINT || "https://s3.fr-par.scw.cloud",
+  s3Region: process.env.S3_REGION || "fr-par",
+  s3Bucket: process.env.S3_BUCKET || "",
+  s3AccessKeyId: process.env.S3_ACCESS_KEY_ID || "",
+  s3SecretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "",
 };

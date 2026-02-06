@@ -5,6 +5,8 @@ import "./App.css";
 function App() {
   const [auth, setAuth] = useState({ status: "loading" });
   const [me, setMe] = useState({ status: "idle" });
+  const [upload, setUpload] = useState({ status: "idle" });
+  const [library, setLibrary] = useState({ status: "idle", items: [] });
 
   useEffect(() => {
     let isMounted = true;
@@ -82,6 +84,134 @@ function App() {
     };
   }, [auth]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadLibrary() {
+      if (auth.status !== "authenticated") {
+        setLibrary({ status: "idle", items: [] });
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/library", {
+          headers: {
+            Authorization: `Bearer ${auth.user.access_token}`,
+          },
+        });
+
+        if (!res.ok) {
+          if (isMounted) {
+            setLibrary({ status: "error", items: [], error: `API error (${res.status})` });
+          }
+          return;
+        }
+
+        const data = await res.json();
+        if (isMounted) {
+          setLibrary({ status: "ok", items: data.items || [], nextCursor: data.nextCursor });
+        }
+      } catch (err) {
+        if (isMounted) {
+          setLibrary({ status: "error", items: [], error: err.message });
+        }
+      }
+    }
+
+    loadLibrary();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [auth]);
+
+  async function handleUpload(event) {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0 || auth.status !== "authenticated") return;
+
+    setUpload({ status: "init", total: files.length, done: 0 });
+
+    try {
+      for (const file of files) {
+        const initRes = await fetch("/api/uploads/init", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${auth.user.access_token}`,
+          },
+          body: JSON.stringify({
+            filename: file.name,
+            contentType: file.type || "application/octet-stream",
+            size: file.size,
+          }),
+        });
+
+        if (!initRes.ok) {
+          setUpload({ status: "error", error: `Init failed (${initRes.status})` });
+          return;
+        }
+
+        const initData = await initRes.json();
+        setUpload((prev) => ({ ...prev, status: "uploading" }));
+
+        const putRes = await fetch(initData.uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": initData.contentType,
+          },
+          body: file,
+        });
+
+        if (!putRes.ok) {
+          setUpload({ status: "error", error: `Upload failed (${putRes.status})` });
+          return;
+        }
+
+        setUpload((prev) => ({ ...prev, status: "finalizing" }));
+        const completeRes = await fetch("/api/uploads/complete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${auth.user.access_token}`,
+          },
+          body: JSON.stringify({
+            key: initData.key,
+            bucket: initData.bucket,
+            contentType: initData.contentType,
+            size: initData.size,
+            filename: initData.filename,
+          }),
+        });
+
+        if (!completeRes.ok) {
+          setUpload({ status: "error", error: `Complete failed (${completeRes.status})` });
+          return;
+        }
+
+        results.push(initData.filename);
+        setUpload((prev) => ({
+          ...prev,
+          status: "done",
+          done: (prev.done || 0) + 1,
+        }));
+      }
+
+      event.target.value = "";
+
+      const res = await fetch("/api/library", {
+        headers: {
+          Authorization: `Bearer ${auth.user.access_token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLibrary({ status: "ok", items: data.items || [], nextCursor: data.nextCursor });
+      }
+    } catch (err) {
+      setUpload({ status: "error", error: err.message });
+    }
+  }
+
   return (
     <div className="page">
       <header className="header">
@@ -118,6 +248,42 @@ function App() {
               Sign out
             </button>
           </div>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Upload</h2>
+        {auth.status !== "authenticated" && <p>Sign in to upload files.</p>}
+        {auth.status === "authenticated" && (
+          <div className="stack">
+            <input type="file" multiple onChange={handleUpload} />
+            {upload.status !== "idle" && (
+              <div className="muted">
+                Status: {upload.status}
+                {upload.total ? ` (${upload.done || 0}/${upload.total})` : ""}
+              </div>
+            )}
+            {upload.status === "error" && <div className="error">{upload.error}</div>}
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Library</h2>
+        {library.status === "idle" && <p>Sign in to view your library.</p>}
+        {library.status === "error" && <p className="error">{library.error}</p>}
+        {library.status === "ok" && library.items.length === 0 && (
+          <p>No assets yet.</p>
+        )}
+        {library.status === "ok" && library.items.length > 0 && (
+          <ul className="list">
+            {library.items.map((item) => (
+              <li key={item.id}>
+                <strong>{item.filename || item.original?.key}</strong>
+                <div className="muted">{item.status}</div>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
