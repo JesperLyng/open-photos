@@ -188,7 +188,6 @@ function App() {
           return;
         }
 
-        results.push(initData.filename);
         setUpload((prev) => ({
           ...prev,
           status: "done",
@@ -279,8 +278,15 @@ function App() {
           <ul className="list">
             {library.items.map((item) => (
               <li key={item.id}>
-                <strong>{item.filename || item.original?.key}</strong>
-                <div className="muted">{item.status}</div>
+                {item.thumbUrl ? (
+                  <img className="thumb" src={item.thumbUrl} alt={item.filename || "asset"} />
+                ) : (
+                  <div className="thumb placeholder" />
+                )}
+                <div>
+                  <strong>{item.filename || item.original?.key}</strong>
+                  <div className="muted">{item.status}</div>
+                </div>
               </li>
             ))}
           </ul>

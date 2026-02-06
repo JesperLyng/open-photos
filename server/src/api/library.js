@@ -1,4 +1,5 @@
 import { listMediaAssets } from "../services/library-service.js";
+import { signDownload } from "../lib/storage.js";
 
 export function registerLibraryRoutes(app) {
   app.get(
@@ -14,14 +15,28 @@ export function registerLibraryRoutes(app) {
         cursor,
       });
 
+      const mapped = await Promise.all(
+        items.map(async (item) => {
+          let thumbUrl = null;
+          if (item.derived?.small?.key) {
+            thumbUrl = await signDownload({ key: item.derived.small.key, expiresIn: 60 * 10 });
+          }
+
+          return {
+            id: item._id,
+            status: item.status,
+            filename: item.filename,
+            createdAt: item.createdAt,
+            original: item.original,
+            derived: item.derived,
+            metadata: item.metadata,
+            thumbUrl,
+          };
+        }),
+      );
+
       return {
-        items: items.map((item) => ({
-          id: item._id,
-          status: item.status,
-          filename: item.filename,
-          createdAt: item.createdAt,
-          original: item.original,
-        })),
+        items: mapped,
         nextCursor,
       };
     },

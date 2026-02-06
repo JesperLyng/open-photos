@@ -15,6 +15,26 @@ const mediaAssetSchema = new Schema(
       contentType: { type: String },
       size: { type: Number },
     },
+    derived: {
+      small: {
+        key: { type: String },
+        width: { type: Number },
+        height: { type: Number },
+      },
+      medium: {
+        key: { type: String },
+        width: { type: Number },
+        height: { type: Number },
+      },
+    },
+    metadata: {
+      width: { type: Number },
+      height: { type: Number },
+      format: { type: String },
+      capturedAt: { type: Date },
+      cameraMake: { type: String },
+      cameraModel: { type: String },
+    },
     filename: { type: String },
     checksum: { type: String },
   },

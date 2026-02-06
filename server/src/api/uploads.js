@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { signUpload } from "../lib/storage.js";
 import { createMediaAsset } from "../services/media-service.js";
+import { processMediaAsset } from "../services/processing-service.js";
 import { config } from "../lib/config.js";
 
 function randomKey(userId) {
@@ -60,6 +61,10 @@ export function registerUploadRoutes(app) {
         size,
         filename,
         checksum,
+      });
+
+      setImmediate(() => {
+        processMediaAsset(asset.id);
       });
 
       return {

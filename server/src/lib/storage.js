@@ -1,4 +1,4 @@
-import {PutObjectCommand, S3Client} from "@aws-sdk/client-s3";
+import {GetObjectCommand, PutObjectCommand, S3Client} from "@aws-sdk/client-s3";
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import {config} from "./config.js";
 
@@ -20,4 +20,38 @@ export async function signUpload({ key, contentType }) {
   });
 
   return await getSignedUrl(s3, command, {expiresIn: 60 * 5});
+}
+
+export async function signDownload({ key, expiresIn = 60 * 5 }) {
+  const command = new GetObjectCommand({
+    Bucket: config.s3Bucket,
+    Key: key,
+  });
+
+  return getSignedUrl(s3, command, { expiresIn });
+}
+
+export async function putObject({ key, body, contentType }) {
+  const command = new PutObjectCommand({
+    Bucket: config.s3Bucket,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  });
+
+  await s3.send(command);
+}
+
+export async function getObjectBuffer({ key }) {
+  const command = new GetObjectCommand({
+    Bucket: config.s3Bucket,
+    Key: key,
+  });
+
+  const response = await s3.send(command);
+  const chunks = [];
+  for await (const chunk of response.Body) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
