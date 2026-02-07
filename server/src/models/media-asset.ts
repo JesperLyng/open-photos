@@ -34,6 +34,7 @@ const mediaAssetSchema = new Schema(
       capturedAt: { type: Date },
       cameraMake: { type: String },
       cameraModel: { type: String },
+      exif: { type: Schema.Types.Mixed },
     },
     filename: { type: String },
     checksum: { type: String, index: true },

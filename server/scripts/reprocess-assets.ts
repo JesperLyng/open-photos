@@ -4,11 +4,13 @@ import { MediaAsset } from "../src/models/media-asset.ts";
 import { processMediaAsset } from "../src/services/processing-service.ts";
 
 async function main() {
-  const argId = process.argv[2];
+  const args = process.argv.slice(2);
+  const regenerateDerived = !args.includes("--skip-thumbs") && !args.includes("--no-thumbs");
+  const argId = args.find((arg) => !arg.startsWith("--"));
   await connectDb();
 
   if (argId) {
-    await processMediaAsset(argId);
+    await processMediaAsset(argId, { regenerateDerived });
     console.log(`Reprocessed ${argId}`);
     await disconnectDb();
     return;
@@ -16,7 +18,7 @@ async function main() {
 
   const assets = await MediaAsset.find({}).select("_id").lean();
   for (const asset of assets) {
-    await processMediaAsset(asset._id.toString());
+    await processMediaAsset(asset._id.toString(), { regenerateDerived });
     console.log(`Reprocessed ${asset._id.toString()}`);
   }
 

@@ -1,14 +1,14 @@
 #root {
   max-width: 100%;
   margin: 0;
-  padding: 1rem 1rem 2rem;
+  padding: 0.5rem 0.75rem 1.5rem;
   width: 100%;
 }
 
 .page {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
-  align-content: start;
   width: 100%;
 }
 
@@ -32,13 +32,14 @@
 }
 
 .library-section {
-  padding: 0.5rem 0.5rem 1.5rem;
+  padding: 0.25rem 0;
   width: 100%;
 }
 
 .year-groups {
   display: grid;
   gap: 0.25rem;
+  width: 100%;
 }
 
 .year-header {
@@ -50,6 +51,7 @@
 .year-group {
   display: grid;
   gap: 0.25rem;
+  width: 100%;
 }
 
 .stack {
@@ -160,47 +162,64 @@ pre {
   position: relative;
 }
 
-.grid {
+.photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 14px;
+  gap: 6px;
   width: 100%;
-  box-sizing: border-box;
+  padding-right: 12px;
 }
 
-.grid-cell {
-  background: transparent;
+.photo-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.photo-tile {
+  position: relative;
   border: 0;
-  text-align: left;
-  cursor: pointer;
-  width: 100%;
-  display: grid;
-  gap: 0.5rem;
   padding: 0;
-  box-sizing: border-box;
+  background: transparent;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
 }
 
-.grid-cell:hover .grid-thumb {
-  transform: scale(1.02);
+.photo-tile:hover .photo-img {
+  transform: var(--img-transform, none) scale(1.02);
   transition: transform 120ms ease;
 }
 
-.grid-cell.selected .grid-thumb {
+.photo-tile.selected {
   outline: 3px solid #38bdf8;
   outline-offset: 2px;
 }
 
-.grid-thumb {
+.photo-img {
   width: 100%;
-  aspect-ratio: 1 / 1;
+  height: 100%;
   object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid #eee;
-  background: #f3f4f6;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: #111827;
+  display: block;
+  transform: var(--img-transform, none);
 }
 
-.grid-thumb.placeholder {
-  background: #f3f4f6;
+.photo-img.placeholder {
+  background: #111827;
+}
+
+.photo-status {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  background: rgba(15, 23, 42, 0.8);
+  color: #f8fafc;
+  text-transform: capitalize;
 }
 
 .grid-frame::after {
@@ -232,17 +251,6 @@ pre {
   margin-bottom: 0.75rem;
 }
 
-.grid-meta {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.grid-title {
-  font-weight: 600;
-  font-size: 0.95rem;
-  line-height: 1.2;
-}
-
 .viewer {
   position: fixed;
   inset: 0;
@@ -264,12 +272,12 @@ pre {
   z-index: 1;
   background: #0f172a;
   color: #f8fafc;
-  width: min(1100px, 92vw);
+  width: min(1200px, 96vw);
   max-height: 86vh;
   padding: 2rem;
   border-radius: 24px;
   display: grid;
-  gap: 1rem;
+  gap: 1.2rem;
   box-shadow: 0 40px 120px rgba(15, 23, 42, 0.6);
 }
 
@@ -297,12 +305,24 @@ pre {
   padding: 1.5rem;
 }
 
+.viewer-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.viewer-body.fullscreen {
+  grid-template-columns: 1fr;
+}
+
 .viewer-image {
   width: 100%;
-  max-height: 60vh;
+  max-height: 62vh;
   object-fit: contain;
   border-radius: 16px;
   background: #111827;
+  transform: var(--img-transform, none);
 }
 
 .viewer-image.placeholder {
@@ -331,6 +351,32 @@ pre {
 .viewer-actions {
   display: flex;
   gap: 0.75rem;
+}
+
+.viewer-panel {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16px;
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.viewer-panel-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.viewer-panel-item {
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.9rem;
+  color: #cbd5f5;
+}
+
+.viewer-panel-item strong {
+  font-weight: 600;
+  color: #f8fafc;
 }
 
 .user-menu {

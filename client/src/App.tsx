@@ -1,4 +1,13 @@
-import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type MouseEvent,
+  type CSSProperties,
+} from "react";
 import { getUser, handleCallback, login, logout, signup } from "./auth/oidc";
 import "./App.css";
 
@@ -7,10 +16,17 @@ type LibraryItem = {
   status: string;
   filename?: string;
   original?: { key?: string };
+  derived?: { small?: { width?: number; height?: number } };
   thumbUrl?: string | null;
   originalUrl?: string | null;
   createdAt?: string;
-  metadata?: { capturedAt?: string };
+  metadata?: {
+    capturedAt?: string;
+    width?: number;
+    height?: number;
+    orientation?: number;
+    exif?: Record<string, unknown>;
+  };
 };
 
 type UploadStatus =
@@ -31,6 +47,24 @@ type UploadItem = {
   progress?: number;
 };
 
+type LayoutTile = {
+  item: LibraryItem;
+  width: number;
+  height: number;
+};
+
+type LayoutRow = {
+  height: number;
+  tiles: LayoutTile[];
+};
+
+type DateGroup = {
+  key: string;
+  label: string;
+  items: LibraryItem[];
+  rows: LayoutRow[];
+};
+
 function App() {
   const [auth, setAuth] = useState({ status: "loading" });
   const [library, setLibrary] = useState<{
@@ -41,6 +75,7 @@ function App() {
   }>({ status: "idle", items: [] });
   const gridItems = library.items;
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [viewerAsset, setViewerAsset] = useState<LibraryItem | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -52,6 +87,8 @@ function App() {
   const apiOrigin = import.meta.env.VITE_API_ORIGIN || "http://localhost:3000";
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [uploadPanelOpen, setUploadPanelOpen] = useState(true);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [gridWidth, setGridWidth] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -380,6 +417,11 @@ function App() {
   }
 
   const currentItem = viewerIndex !== null ? gridItems[viewerIndex] : null;
+  const detailItem = viewerAsset || currentItem;
+  const indexById = useMemo(
+    () => new Map(gridItems.map((item, index) => [item.id, index])),
+    [gridItems],
+  );
   const uploadCounts = uploads.reduce(
     (acc, item) => {
       if (item.status === "done" || item.status === "duplicate") acc.completed += 1;
@@ -391,16 +433,170 @@ function App() {
   );
   const showUploadPanel = uploads.length > 0;
 
-  function groupByYear(items: LibraryItem[]) {
-    const groups: Record<string, LibraryItem[]> = {};
-    for (const item of items) {
-      const dateSource = item.metadata?.capturedAt || item.createdAt;
-      const date = dateSource ? new Date(dateSource) : new Date();
-      const year = String(date.getFullYear());
-      if (!groups[year]) groups[year] = [];
-      groups[year].push(item);
+  function getItemDate(item: LibraryItem) {
+    const dateSource = item.metadata?.capturedAt || item.createdAt;
+    if (!dateSource) return null;
+    const date = new Date(dateSource);
+    return Number.isNaN(date.valueOf()) ? null : date;
+  }
+
+  function getItemRatio(item: LibraryItem) {
+    const derivedWidth = item.derived?.small?.width;
+    const derivedHeight = item.derived?.small?.height;
+    if (derivedWidth && derivedHeight) {
+      return { ratio: derivedWidth / derivedHeight, fromDerived: true };
     }
-    return groups;
+
+    const width = item.metadata?.width;
+    const height = item.metadata?.height;
+    if (width && height) return { ratio: width / height, fromDerived: false };
+
+    return { ratio: 1, fromDerived: false };
+  }
+
+  function getOrientationTransform(orientation?: number) {
+    switch (orientation) {
+      case 2:
+        return "scaleX(-1)";
+      case 3:
+        return "rotate(180deg)";
+      case 4:
+        return "scaleY(-1)";
+      case 5:
+        return "rotate(90deg) scaleX(-1)";
+      case 6:
+        return "rotate(90deg)";
+      case 7:
+        return "rotate(270deg) scaleX(-1)";
+      case 8:
+        return "rotate(270deg)";
+      default:
+        return "";
+    }
+  }
+
+  function getDisplayRatio(item: LibraryItem) {
+    const { ratio, fromDerived } = getItemRatio(item);
+    const orientation = item.metadata?.orientation;
+    if (!fromDerived && orientation && [5, 6, 7, 8].includes(orientation)) {
+      return ratio > 0 ? 1 / ratio : ratio;
+    }
+    return ratio;
+  }
+
+  function buildRows(items: LibraryItem[], containerWidth: number): LayoutRow[] {
+    const width = containerWidth || 1200;
+    const gap = 6;
+    const targetHeight = 140;
+    const rows: LayoutRow[] = [];
+    let row: { item: LibraryItem; ratio: number }[] = [];
+    let ratioSum = 0;
+
+    const flushRow = (rowItems: { item: LibraryItem; ratio: number }[], height: number) => {
+      const tiles = rowItems.map((entry) => ({
+        item: entry.item,
+        width: Math.round(height * entry.ratio),
+        height,
+      }));
+      const totalWidth =
+        tiles.reduce((sum, tile) => sum + tile.width, 0) + gap * (tiles.length - 1);
+      const diff = Math.round(width - totalWidth);
+      if (tiles.length > 0 && Math.abs(diff) > 1) {
+        tiles[tiles.length - 1].width = Math.max(40, tiles[tiles.length - 1].width + diff);
+      }
+      rows.push({ height, tiles });
+    };
+
+    for (const item of items) {
+      const ratio = Math.max(0.5, Math.min(getDisplayRatio(item), 2.8));
+      row.push({ item, ratio });
+      ratioSum += ratio;
+
+      const rowHeight = (width - gap * (row.length - 1)) / ratioSum;
+      if (rowHeight <= targetHeight * 1.25) {
+        if (rowHeight < targetHeight * 0.7 && row.length > 1) {
+          const last = row.pop();
+          if (last) ratioSum -= last.ratio;
+          const adjustedHeight = (width - gap * (row.length - 1)) / ratioSum;
+          flushRow(row, adjustedHeight);
+          row = last ? [last] : [];
+          ratioSum = last ? last.ratio : 0;
+        } else {
+          flushRow(row, rowHeight);
+          row = [];
+          ratioSum = 0;
+        }
+      }
+    }
+
+    if (row.length > 0) {
+      const avgRatio = ratioSum / row.length;
+      const estimatedCount = Math.max(
+        row.length,
+        Math.round(width / (targetHeight * avgRatio + gap)),
+      );
+      const ghostCount = Math.max(0, estimatedCount - row.length);
+      const totalRatio = ratioSum + ghostCount * avgRatio;
+      const totalGap = gap * (row.length + ghostCount - 1);
+      const available = Math.max(0, width - totalGap);
+      const naturalHeight = totalRatio > 0 ? available / totalRatio : targetHeight;
+      const rowHeight = Math.min(targetHeight, Math.max(targetHeight * 0.7, naturalHeight));
+      const tiles = row.map((entry) => ({
+        item: entry.item,
+        width: Math.round(rowHeight * entry.ratio),
+        height: rowHeight,
+      }));
+      rows.push({ height: rowHeight, tiles });
+    }
+
+    return rows;
+  }
+
+  function groupByDate(items: LibraryItem[], containerWidth: number): DateGroup[] {
+    const groups = new Map<string, { date: Date | null; label: string; items: LibraryItem[] }>();
+
+    for (const item of items) {
+      const date = getItemDate(item);
+      const key = date ? date.toISOString().slice(0, 10) : "unknown";
+      const label = date
+        ? date.toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })
+        : "Unknown date";
+      if (!groups.has(key)) {
+        groups.set(key, { date, label, items: [] });
+      }
+      groups.get(key)?.items.push(item);
+    }
+
+    const sortedGroups = Array.from(groups.entries())
+      .map(([key, value]) => ({ key, ...value }))
+      .sort((a, b) => {
+        if (!a.date && !b.date) return 0;
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return b.date.getTime() - a.date.getTime();
+      });
+
+    return sortedGroups.map((group) => {
+      const sortedItems = group.items.slice().sort((a, b) => {
+        const aDate = getItemDate(a)?.getTime() || 0;
+        const bDate = getItemDate(b)?.getTime() || 0;
+        if (aDate !== bDate) return bDate - aDate;
+        const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bCreated - aCreated;
+      });
+
+      return {
+        key: group.key,
+        label: group.label,
+        items: sortedItems,
+        rows: buildRows(sortedItems, containerWidth),
+      };
+    });
   }
 
   function toggleSelect(index: number, event: MouseEvent) {
@@ -491,6 +687,51 @@ function App() {
   }, [viewerIndex, gridItems.length]);
 
   useEffect(() => {
+    let active = true;
+    async function loadViewerAsset() {
+      if (viewerIndex === null || auth.status !== "authenticated") {
+        setViewerAsset(null);
+        return;
+      }
+      const item = gridItems[viewerIndex];
+      if (!item) {
+        setViewerAsset(null);
+        return;
+      }
+
+      setViewerAsset(item);
+
+      try {
+        const asset = await fetchAsset(auth.user.access_token, item.id);
+        if (!active) return;
+        if (asset) setViewerAsset(asset);
+      } catch {
+        if (active) setViewerAsset(item);
+      }
+    }
+
+    loadViewerAsset();
+    return () => {
+      active = false;
+    };
+  }, [viewerIndex, auth.status, auth.user?.access_token, gridItems]);
+
+  useEffect(() => {
+    if (viewerIndex === null) return;
+    const preload = (index: number) => {
+      const item = gridItems[index];
+      if (!item) return;
+      const url = item.originalUrl || item.thumbUrl;
+      if (!url) return;
+      const img = new Image();
+      img.src = url;
+    };
+    preload(viewerIndex);
+    preload(viewerIndex + 1);
+    preload(viewerIndex - 1);
+  }, [viewerIndex, gridItems]);
+
+  useEffect(() => {
     function onFullscreenChange() {
       setIsFullscreen(Boolean(document.fullscreenElement));
     }
@@ -512,6 +753,110 @@ function App() {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [menuOpen]);
 
+  function sanitizeText(value: string) {
+    return value.replace(/[\u0000-\u001F\u007F]/g, "").replace(/\s+/g, " ").trim();
+  }
+
+  function normalizeExifValue(value: unknown) {
+    if (value == null) return null;
+    if (typeof value === "number" || typeof value === "string" || typeof value === "boolean") {
+      if (typeof value === "string") return sanitizeText(value);
+      return value;
+    }
+    if (Array.isArray(value)) {
+      return value.length ? normalizeExifValue(value[0]) : null;
+    }
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if ("value" in record) return normalizeExifValue(record.value);
+      if ("numerator" in record && "denominator" in record) {
+        const num = Number(record.numerator);
+        const den = Number(record.denominator);
+        if (!Number.isNaN(num) && !Number.isNaN(den) && den !== 0) {
+          return num / den;
+        }
+      }
+    }
+    return null;
+  }
+
+  function readExif(exif: Record<string, unknown> | undefined, paths: string[]) {
+    if (!exif) return null;
+    for (const path of paths) {
+      const parts = path.split(".");
+      let current: unknown = exif;
+      for (const part of parts) {
+        if (!current || typeof current !== "object") {
+          current = null;
+          break;
+        }
+        current = (current as Record<string, unknown>)[part];
+      }
+      const normalized = normalizeExifValue(current);
+      if (normalized !== null && normalized !== undefined) return normalized;
+    }
+    return null;
+  }
+
+  function formatExposure(value: unknown) {
+    const numeric = typeof value === "number" ? value : Number(value);
+    if (Number.isNaN(numeric) || numeric <= 0) return null;
+    if (numeric >= 1) return `${numeric.toFixed(1)}s`;
+    return `1/${Math.round(1 / numeric)}s`;
+  }
+
+  function formatAperture(value: unknown) {
+    const numeric = typeof value === "number" ? value : Number(value);
+    if (Number.isNaN(numeric) || numeric <= 0) return null;
+    return `f/${numeric.toFixed(1)}`;
+  }
+
+  function formatFocalLength(value: unknown) {
+    const numeric = typeof value === "number" ? value : Number(value);
+    if (Number.isNaN(numeric) || numeric <= 0) return null;
+    return `${Math.round(numeric)} mm`;
+  }
+
+  function formatIso(value: unknown) {
+    const numeric = typeof value === "number" ? value : Number(value);
+    if (Number.isNaN(numeric) || numeric <= 0) return null;
+    return `ISO ${Math.round(numeric)}`;
+  }
+
+  function formatDate(value?: string) {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function displayText(value: unknown) {
+    if (value == null) return null;
+    if (typeof value === "string") return sanitizeText(value);
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    return null;
+  }
+
+  useEffect(() => {
+    if (!gridRef.current) return;
+    const node = gridRef.current;
+    const update = () => setGridWidth(node.clientWidth);
+    update();
+    const observer = new ResizeObserver(() => update());
+    observer.observe(node);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
   async function toggleFullscreen() {
     if (!document.fullscreenElement && viewerRef.current) {
       await viewerRef.current.requestFullscreen();
@@ -520,136 +865,33 @@ function App() {
     }
   }
 
+  const dateGroups = useMemo(
+    () => groupByDate(gridItems, gridWidth),
+    [gridItems, gridWidth],
+  );
+
   return (
     <div className="page">
-      <header className="header">
-        <div className="title">
-          <h1>Open Photos</h1>
-        </div>
-        <div className="header-actions">
-          <label
-            className={`icon-button ${auth.status !== "authenticated" ? "disabled" : ""}`}
-            title="Upload photos"
-          >
-            <input
-              type="file"
-              multiple
-              onChange={handleUploadInput}
-              disabled={auth.status !== "authenticated"}
-            />
-            <span className="icon">+</span>
-          </label>
-          <div className="user-menu" ref={menuRef}>
-            <button
-              className="user-button"
-              onClick={() => setMenuOpen((prev) => !prev)}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-            >
-              <span className="user-avatar" />
-            </button>
-            {menuOpen && (
-              <div className="menu" role="menu">
-                {auth.status === "loading" && (
-                  <div className="menu-item">Checking session...</div>
-                )}
-                {auth.status === "error" && (
-                  <div className="menu-item error">{auth.error}</div>
-                )}
-                {auth.status === "anonymous" && (
-                  <>
-                    <button className="menu-item" onClick={login}>
-                      Sign in
-                    </button>
-                    <button className="menu-item" onClick={signup}>
-                      Create account
-                    </button>
-                  </>
-                )}
-                {auth.status === "authenticated" && (
-                  <>
-                    <div className="menu-item muted">
-                      {auth.user.profile?.email || "Signed in"}
-                    </div>
-                    <button className="menu-item" onClick={logout}>
-                      Sign out
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <section className="library-section">
-        {auth.status !== "authenticated" && <p>Sign in to upload files.</p>}
-        {library.status === "idle" && <p>Sign in to view your library.</p>}
-        {library.status === "error" && <p className="error">{library.error}</p>}
-        {selection.size > 0 && (
-          <div className="selection-bar">
-            <div>{selection.size} selected</div>
-            <button className="button ghost" onClick={deleteSelected}>
-              Delete
-            </button>
-          </div>
-        )}
-        {library.status === "ok" && library.items.length === 0 && <p>No assets yet.</p>}
-        {library.status === "ok" && library.items.length > 0 && (
-          <div className="year-groups">
-            {Object.entries(groupByYear(gridItems))
-              .sort((a, b) => Number(b[0]) - Number(a[0]))
-              .map(([year, items]) => (
-                <div key={year} className="year-group">
-                  <div className="year-header">{year}</div>
-                  <div
-                    className={`grid-frame ${isDragging ? "dragging" : ""}`}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDragEnter={() => setIsDragging(true)}
-                    onDragLeave={() => setIsDragging(false)}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      setIsDragging(false);
-                      const files = event.dataTransfer?.files;
-                      if (!files || files.length === 0) return;
-                      void handleUploadFiles(Array.from(files));
-                    }}
-                  >
-                    <div className="grid">
-                      {items.map((item) => {
-                        const globalIndex = gridItems.findIndex((entry) => entry.id === item.id);
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            className={`grid-cell ${selection.has(item.id) ? "selected" : ""}`}
-                            onClick={(event) => toggleSelect(globalIndex, event)}
-                          >
-                            {item.thumbUrl ? (
-                              <img
-                                className="grid-thumb"
-                                src={item.thumbUrl}
-                                alt={item.filename || "asset"}
-                              />
-                            ) : (
-                              <div className="grid-thumb placeholder" />
-                            )}
-                            <div className="grid-meta">
-                              <div className="grid-title">
-                                {item.filename || item.original?.key}
-                              </div>
-                              {item.status !== "ready" && <div className="muted">{item.status}</div>}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </div>
-        )}
-      </section>
+      <Header
+        auth={auth}
+        menuOpen={menuOpen}
+        setMenuOpen={setMenuOpen}
+        menuRef={menuRef}
+        handleUploadInput={handleUploadInput}
+      />
+      <LibraryGrid
+        gridRef={gridRef}
+        auth={auth}
+        library={library}
+        selection={selection}
+        onDeleteSelected={deleteSelected}
+        dateGroups={dateGroups}
+        isDragging={isDragging}
+        setIsDragging={setIsDragging}
+        handleUploadFiles={handleUploadFiles}
+        indexById={indexById}
+        toggleSelect={toggleSelect}
+      />
 
       {currentItem && (
         <div className="viewer" role="dialog" aria-modal="true" ref={viewerRef}>
@@ -665,44 +907,162 @@ function App() {
                 {isFullscreen ? "Exit full screen" : "Full screen"}
               </button>
             </div>
-            {currentItem.thumbUrl ? (
-              <img
-                className="viewer-image"
-                src={currentItem.originalUrl || currentItem.thumbUrl}
-                alt={currentItem.filename || "asset"}
-              />
-            ) : (
-              <div className="viewer-image placeholder" />
-            )}
-            {!isFullscreen && (
-              <>
-                <div className="viewer-meta">
-                  <div className="viewer-title">
-                    {currentItem.filename || currentItem.original?.key}
+            <div className={`viewer-body ${isFullscreen ? "fullscreen" : ""}`}>
+              {(() => {
+                const transform = getOrientationTransform(detailItem?.metadata?.orientation);
+                const imgStyle = transform
+                  ? ({ "--img-transform": transform } as CSSProperties)
+                  : undefined;
+                return currentItem.thumbUrl ? (
+                  <img
+                    className="viewer-image"
+                    src={currentItem.originalUrl || currentItem.thumbUrl}
+                    alt={currentItem.filename || "asset"}
+                    style={imgStyle}
+                  />
+                ) : (
+                  <div className="viewer-image placeholder" />
+                );
+              })()}
+              {!isFullscreen && (
+                <aside className="viewer-panel">
+                  <div className="viewer-panel-title">Details</div>
+                  <div className="viewer-panel-item">
+                    <span>Filename</span>
+                    <strong>
+                      {displayText(detailItem?.filename) ||
+                        displayText(detailItem?.original?.key) ||
+                        "-"}
+                    </strong>
                   </div>
-                  <div className="muted">{currentItem.status}</div>
-                </div>
-                <div className="viewer-actions">
-                  <button
-                    className="button ghost"
-                    onClick={() => setViewerIndex((prev) => (prev ? prev - 1 : 0))}
-                    disabled={viewerIndex === 0}
-                  >
-                    Previous
-                  </button>
-                  <button
-                    className="button"
-                    onClick={() =>
-                      setViewerIndex((prev) =>
-                        prev === null ? prev : Math.min(prev + 1, gridItems.length - 1),
-                      )
-                    }
-                    disabled={viewerIndex === gridItems.length - 1}
-                  >
-                    Next
-                  </button>
-                </div>
-              </>
+                  <div className="viewer-panel-item">
+                    <span>Date taken</span>
+                    <strong>
+                      {formatDate(detailItem?.metadata?.capturedAt) ||
+                        formatDate(detailItem?.createdAt) ||
+                        "-"}
+                    </strong>
+                  </div>
+                  <div className="viewer-panel-item">
+                    <span>Camera</span>
+                    <strong>
+                      {displayText(
+                        readExif(detailItem?.metadata?.exif, [
+                          "image.Make",
+                          "Image.Make",
+                          "ifd0.Make",
+                          "IFD0.Make",
+                        ]),
+                      ) ||
+                        displayText(detailItem?.metadata?.cameraMake) ||
+                        "-"}{" "}
+                      {displayText(
+                        readExif(detailItem?.metadata?.exif, [
+                          "image.Model",
+                          "Image.Model",
+                          "ifd0.Model",
+                          "IFD0.Model",
+                        ]),
+                      ) || displayText(detailItem?.metadata?.cameraModel) || ""}
+                    </strong>
+                  </div>
+                  <div className="viewer-panel-item">
+                    <span>Lens</span>
+                    <strong>
+                      {displayText(
+                        readExif(detailItem?.metadata?.exif, [
+                          "exif.LensModel",
+                          "Exif.LensModel",
+                          "photo.LensModel",
+                          "Photo.LensModel",
+                        ]),
+                      ) || "-"}
+                    </strong>
+                  </div>
+                  <div className="viewer-panel-item">
+                    <span>Exposure</span>
+                    <strong>
+                      {formatExposure(
+                        readExif(detailItem?.metadata?.exif, [
+                          "exif.ExposureTime",
+                          "Exif.ExposureTime",
+                          "photo.ExposureTime",
+                          "Photo.ExposureTime",
+                        ]),
+                      ) || "-"}
+                    </strong>
+                  </div>
+                  <div className="viewer-panel-item">
+                    <span>Aperture</span>
+                    <strong>
+                      {formatAperture(
+                        readExif(detailItem?.metadata?.exif, [
+                          "exif.FNumber",
+                          "Exif.FNumber",
+                          "photo.FNumber",
+                          "Photo.FNumber",
+                        ]),
+                      ) || "-"}
+                    </strong>
+                  </div>
+                  <div className="viewer-panel-item">
+                    <span>ISO</span>
+                    <strong>
+                      {formatIso(
+                        readExif(detailItem?.metadata?.exif, [
+                          "exif.ISOSpeedRatings",
+                          "Exif.ISOSpeedRatings",
+                          "photo.ISOSpeedRatings",
+                          "Photo.ISOSpeedRatings",
+                        ]),
+                      ) || "-"}
+                    </strong>
+                  </div>
+                  <div className="viewer-panel-item">
+                    <span>Focal length</span>
+                    <strong>
+                      {formatFocalLength(
+                        readExif(detailItem?.metadata?.exif, [
+                          "exif.FocalLength",
+                          "Exif.FocalLength",
+                          "photo.FocalLength",
+                          "Photo.FocalLength",
+                        ]),
+                      ) || "-"}
+                    </strong>
+                  </div>
+                  <div className="viewer-panel-item">
+                    <span>Size</span>
+                    <strong>
+                      {detailItem?.metadata?.width && detailItem?.metadata?.height
+                        ? `${detailItem?.metadata?.width} × ${detailItem?.metadata?.height}`
+                        : "-"}
+                    </strong>
+                  </div>
+                </aside>
+              )}
+            </div>
+            {!isFullscreen && (
+              <div className="viewer-actions">
+                <button
+                  className="button ghost"
+                  onClick={() => setViewerIndex((prev) => (prev ? prev - 1 : 0))}
+                  disabled={viewerIndex === 0}
+                >
+                  Previous
+                </button>
+                <button
+                  className="button"
+                  onClick={() =>
+                    setViewerIndex((prev) =>
+                      prev === null ? prev : Math.min(prev + 1, gridItems.length - 1),
+                    )
+                  }
+                  disabled={viewerIndex === gridItems.length - 1}
+                >
+                  Next
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -779,3 +1139,182 @@ function App() {
 }
 
 export default App;
+
+const Header = memo(function Header({
+  auth,
+  menuOpen,
+  setMenuOpen,
+  menuRef,
+  handleUploadInput,
+}: {
+  auth: { status: string; user?: any; error?: string };
+  menuOpen: boolean;
+  setMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  menuRef: React.RefObject<HTMLDivElement>;
+  handleUploadInput: (event: ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <header className="header">
+      <div className="title">
+        <h1>Open Photos</h1>
+      </div>
+      <div className="header-actions">
+        <label
+          className={`icon-button ${auth.status !== "authenticated" ? "disabled" : ""}`}
+          title="Upload photos"
+        >
+          <input
+            type="file"
+            multiple
+            onChange={handleUploadInput}
+            disabled={auth.status !== "authenticated"}
+          />
+          <span className="icon">+</span>
+        </label>
+        <div className="user-menu" ref={menuRef}>
+          <button
+            className="user-button"
+            onClick={() => setMenuOpen((prev) => !prev)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            <span className="user-avatar" />
+          </button>
+          {menuOpen && (
+            <div className="menu" role="menu">
+              {auth.status === "loading" && <div className="menu-item">Checking session...</div>}
+              {auth.status === "error" && (
+                <div className="menu-item error">{auth.error}</div>
+              )}
+              {auth.status === "anonymous" && (
+                <>
+                  <button className="menu-item" onClick={login}>
+                    Sign in
+                  </button>
+                  <button className="menu-item" onClick={signup}>
+                    Create account
+                  </button>
+                </>
+              )}
+              {auth.status === "authenticated" && (
+                <>
+                  <div className="menu-item muted">
+                    {auth.user?.profile?.email || "Signed in"}
+                  </div>
+                  <button className="menu-item" onClick={logout}>
+                    Sign out
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+});
+
+const LibraryGrid = memo(function LibraryGrid({
+  gridRef,
+  auth,
+  library,
+  selection,
+  onDeleteSelected,
+  dateGroups,
+  isDragging,
+  setIsDragging,
+  handleUploadFiles,
+  indexById,
+  toggleSelect,
+}: {
+  gridRef: React.RefObject<HTMLElement>;
+  auth: { status: string };
+  library: { status: string; items: LibraryItem[]; error?: string };
+  selection: Set<string>;
+  onDeleteSelected: () => void;
+  dateGroups: DateGroup[];
+  isDragging: boolean;
+  setIsDragging: React.Dispatch<React.SetStateAction<boolean>>;
+  handleUploadFiles: (files: File[]) => void;
+  indexById: Map<string, number>;
+  toggleSelect: (index: number, event: MouseEvent) => void;
+}) {
+  return (
+    <section className="library-section" ref={gridRef}>
+      {auth.status !== "authenticated" && <p>Sign in to upload files.</p>}
+      {library.status === "idle" && <p>Sign in to view your library.</p>}
+      {library.status === "error" && <p className="error">{library.error}</p>}
+      {selection.size > 0 && (
+        <div className="selection-bar">
+          <div>{selection.size} selected</div>
+          <button className="button ghost" onClick={onDeleteSelected}>
+            Delete
+          </button>
+        </div>
+      )}
+      {library.status === "ok" && library.items.length === 0 && <p>No assets yet.</p>}
+      {library.status === "ok" && library.items.length > 0 && (
+        <div className="year-groups">
+          {dateGroups.map((group, groupIndex) => (
+            <div key={`${group.key}-${groupIndex}`} className="year-group">
+              <div className="year-header">{group.label}</div>
+              <div
+                className={`grid-frame ${isDragging ? "dragging" : ""}`}
+                onDragOver={(event) => event.preventDefault()}
+                onDragEnter={() => setIsDragging(true)}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setIsDragging(false);
+                  const files = event.dataTransfer?.files;
+                  if (!files || files.length === 0) return;
+                  void handleUploadFiles(Array.from(files));
+                }}
+              >
+                <div className="photo-grid">
+                  {group.rows.map((row, rowIndex) => (
+                    <div key={`${group.key}-${rowIndex}`} className="photo-row">
+                      {row.tiles.map((tile) => {
+                        const globalIndex = indexById.get(tile.item.id);
+                        if (globalIndex === undefined) return null;
+                        const transform = getOrientationTransform(tile.item.metadata?.orientation);
+                        const imgStyle = transform
+                          ? ({ "--img-transform": transform } as CSSProperties)
+                          : undefined;
+                        return (
+                          <button
+                            key={tile.item.id}
+                            type="button"
+                            className={`photo-tile ${
+                              selection.has(tile.item.id) ? "selected" : ""
+                            }`}
+                            style={{ width: tile.width, height: tile.height }}
+                            onClick={(event) => toggleSelect(globalIndex, event)}
+                          >
+                            {tile.item.thumbUrl ? (
+                              <img
+                                className="photo-img"
+                                src={tile.item.thumbUrl}
+                                alt={tile.item.filename || "asset"}
+                                style={imgStyle}
+                              />
+                            ) : (
+                              <div className="photo-img placeholder" />
+                            )}
+                            {tile.item.status !== "ready" && (
+                              <div className="photo-status">{tile.item.status}</div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+});

@@ -26,6 +26,11 @@ export function registerLibraryRoutes(app) {
             originalUrl = await signDownload({ key: item.original.key, expiresIn: 60 * 10 });
           }
 
+          const metadata = item.metadata ? { ...item.metadata } : undefined;
+          if (metadata && "exif" in metadata) {
+            delete metadata.exif;
+          }
+
           return {
             id: item._id,
             status: item.status,
@@ -33,7 +38,7 @@ export function registerLibraryRoutes(app) {
             createdAt: item.createdAt,
             original: item.original,
             derived: item.derived,
-            metadata: item.metadata,
+            metadata,
             thumbUrl,
             originalUrl,
           };
