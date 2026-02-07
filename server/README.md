@@ -6,6 +6,8 @@ Node.js API and background workers.
 - `npm run dev`
 - `npm run build`
 - `npm run start`
+- `tsx scripts/reprocess-assets.ts` (reprocess all assets)
+- `tsx scripts/reprocess-assets.ts <assetId>` (reprocess single)
 
 ## Environment
 - `MONGODB_URI` (default: `mongodb://127.0.0.1:27017/open-photos`)
@@ -27,3 +29,5 @@ Node.js API and background workers.
 - `POST /api/uploads/init` (requires Bearer token)
 - `POST /api/uploads/complete` (requires Bearer token)
 - `GET /api/library` (requires Bearer token)
+- `DELETE /api/assets/:id` (requires Bearer token)
+- `GET /api/assets/:id` (requires Bearer token)

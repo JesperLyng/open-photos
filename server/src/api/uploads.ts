@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { signUpload } from "../lib/storage.js";
-import { createMediaAsset } from "../services/media-service.js";
+import { createMediaAsset, findDuplicateAsset } from "../services/media-service.js";
 import { processMediaAsset } from "../services/processing-service.js";
 import { config } from "../lib/config.js";
 
@@ -28,10 +28,24 @@ export function registerUploadRoutes(app) {
         throw app.httpErrors.internalServerError("storage not configured");
       }
 
+      const duplicate = await findDuplicateAsset({
+        ownerId: request.user.id,
+        checksum,
+        size,
+      });
+      if (duplicate) {
+        return {
+          duplicate: true,
+          assetId: duplicate.id,
+          status: duplicate.status,
+        };
+      }
+
       const key = randomKey(request.user.id);
       const uploadUrl = await signUpload({ key, contentType });
 
       return {
+        duplicate: false,
         uploadUrl,
         key,
         bucket: config.s3Bucket,

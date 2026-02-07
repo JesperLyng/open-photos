@@ -5,6 +5,8 @@ import { requireAuth } from "./lib/auth.js";
 import { setErrorHandlers } from "./lib/errors.js";
 import { registerUploadRoutes } from "./api/uploads.js";
 import { registerLibraryRoutes } from "./api/library.js";
+import { registerAssetRoutes } from "./api/assets.js";
+import { registerRealtime } from "./lib/realtime.js";
 import sensible from "@fastify/sensible";
 
 export function buildServer() {
@@ -17,6 +19,8 @@ export function buildServer() {
   registerAuthRoutes(app);
   registerUploadRoutes(app);
   registerLibraryRoutes(app);
+  registerAssetRoutes(app);
+  registerRealtime(app);
   setErrorHandlers(app);
 
   return app;

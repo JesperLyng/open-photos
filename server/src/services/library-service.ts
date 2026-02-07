@@ -7,7 +7,7 @@ export async function listMediaAssets({ ownerId, limit, cursor }) {
   }
 
   const items = await MediaAsset.find(query)
-    .sort({ _id: -1 })
+    .sort({ "metadata.capturedAt": -1, createdAt: -1 })
     .limit(limit)
     .lean();
 

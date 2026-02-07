@@ -36,7 +36,7 @@ const mediaAssetSchema = new Schema(
       cameraModel: { type: String },
     },
     filename: { type: String },
-    checksum: { type: String },
+    checksum: { type: String, index: true },
   },
   { timestamps: true },
 );

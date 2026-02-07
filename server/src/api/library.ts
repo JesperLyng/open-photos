@@ -18,8 +18,12 @@ export function registerLibraryRoutes(app) {
       const mapped = await Promise.all(
         items.map(async (item) => {
           let thumbUrl = null;
+          let originalUrl = null;
           if (item.derived?.small?.key) {
             thumbUrl = await signDownload({ key: item.derived.small.key, expiresIn: 60 * 10 });
+          }
+          if (item.original?.key) {
+            originalUrl = await signDownload({ key: item.original.key, expiresIn: 60 * 10 });
           }
 
           return {
@@ -31,6 +35,7 @@ export function registerLibraryRoutes(app) {
             derived: item.derived,
             metadata: item.metadata,
             thumbUrl,
+            originalUrl,
           };
         }),
       );
