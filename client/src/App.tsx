@@ -13,9 +13,26 @@ type LibraryItem = {
   metadata?: { capturedAt?: string };
 };
 
+type UploadStatus =
+  | "queued"
+  | "hashing"
+  | "init"
+  | "uploading"
+  | "finalizing"
+  | "done"
+  | "duplicate"
+  | "error";
+
+type UploadItem = {
+  id: string;
+  name: string;
+  status: UploadStatus;
+  error?: string;
+  progress?: number;
+};
+
 function App() {
   const [auth, setAuth] = useState({ status: "loading" });
-  const [, setUpload] = useState({ status: "idle" });
   const [library, setLibrary] = useState<{
     status: string;
     items: LibraryItem[];
@@ -33,6 +50,8 @@ function App() {
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const apiOrigin = import.meta.env.VITE_API_ORIGIN || "http://localhost:3000";
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [uploadPanelOpen, setUploadPanelOpen] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -71,20 +90,50 @@ function App() {
     };
   }, []);
 
-  async function fetchLibrary(token: string) {
-    const res = await fetch("/api/library", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+  useEffect(() => {
+    if (auth.status === "authenticated") {
+      sessionStorage.removeItem("oidc_login_started");
+    }
+  }, [auth.status]);
 
-    if (!res.ok) {
-      setLibrary({ status: "error", items: [], error: `API error (${res.status})` });
-      return;
+  useEffect(() => {
+    if (auth.status !== "anonymous") return;
+    const started = sessionStorage.getItem("oidc_login_started");
+    if (started) return;
+    sessionStorage.setItem("oidc_login_started", "true");
+    login();
+  }, [auth.status]);
+
+  async function fetchLibrary(token: string) {
+    const collected: LibraryItem[] = [];
+    let cursor: string | null = null;
+    let page = 0;
+
+    while (true) {
+      const query = new URLSearchParams({ limit: "200" });
+      if (cursor) query.set("cursor", cursor);
+
+      const res = await fetch(`/api/library?${query.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        setLibrary({ status: "error", items: [], error: `API error (${res.status})` });
+        return;
+      }
+
+      const data = await res.json();
+      const batch = data.items || [];
+      collected.push(...batch);
+      cursor = data.nextCursor || null;
+      page += 1;
+
+      if (!cursor || batch.length === 0 || page > 50) break;
     }
 
-    const data = await res.json();
-    setLibrary({ status: "ok", items: data.items || [], nextCursor: data.nextCursor });
+    setLibrary({ status: "ok", items: collected, nextCursor: cursor });
   }
 
   async function fetchAsset(token: string, assetId: string) {
@@ -179,15 +228,66 @@ function App() {
     return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
   }
 
-  async function handleUpload(event: ChangeEvent<HTMLInputElement>, fileOverride?: File[]) {
-    const files = fileOverride ?? Array.from(event.target.files || []);
-    if (files.length === 0 || auth.status !== "authenticated") return;
+  function addUploads(files: File[]) {
+    const tasks = files.map((file) => ({ id: crypto.randomUUID(), file }));
+    setUploads((prev) => [
+      ...tasks.map((task) => ({
+        id: task.id,
+        name: task.file.name,
+        status: "queued" as UploadStatus,
+      })),
+      ...prev,
+    ]);
+    setUploadPanelOpen(true);
+    return tasks;
+  }
 
-    setUpload({ status: "init", total: files.length, done: 0 });
+  function updateUpload(id: string, patch: Partial<UploadItem>) {
+    setUploads((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  function uploadWithProgress(
+    url: string,
+    contentType: string,
+    file: File,
+    onProgress: (value: number) => void,
+  ) {
+    return new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", url);
+      xhr.setRequestHeader("Content-Type", contentType);
+
+      xhr.upload.addEventListener("progress", (event) => {
+        if (!event.lengthComputable) return;
+        const percent = Math.round((event.loaded / event.total) * 100);
+        onProgress(percent);
+      });
+
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress(100);
+          resolve();
+        } else {
+          reject(new Error(`Upload failed (${xhr.status})`));
+        }
+      });
+
+      xhr.addEventListener("error", () => reject(new Error("Upload failed")));
+      xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
+      xhr.send(file);
+    });
+  }
+
+  async function handleUploadFiles(files: File[]) {
+    if (files.length === 0 || auth.status !== "authenticated") return;
+    const tasks = addUploads(files);
 
     try {
-      for (const file of files) {
-        const checksum = await computeSHA256(file);
+      for (const task of tasks) {
+        updateUpload(task.id, { status: "hashing" });
+        const checksum = await computeSHA256(task.file);
+        updateUpload(task.id, { status: "init" });
+
         const initRes = await fetch("/api/uploads/init", {
           method: "POST",
           headers: {
@@ -195,43 +295,44 @@ function App() {
             Authorization: `Bearer ${auth.user.access_token}`,
           },
           body: JSON.stringify({
-            filename: file.name,
-            contentType: file.type || "application/octet-stream",
-            size: file.size,
+            filename: task.file.name,
+            contentType: task.file.type || "application/octet-stream",
+            size: task.file.size,
             checksum,
           }),
         });
 
         if (!initRes.ok) {
-          setUpload({ status: "error", error: `Init failed (${initRes.status})` });
-          return;
+          updateUpload(task.id, {
+            status: "error",
+            error: `Init failed (${initRes.status})`,
+          });
+          continue;
         }
 
         const initData = await initRes.json();
         if (initData.duplicate) {
-          setUpload((prev) => ({
-            ...prev,
-            status: "duplicate",
-            done: (prev.done || 0) + 1,
-          }));
+          updateUpload(task.id, { status: "duplicate", progress: 100 });
           continue;
         }
-        setUpload((prev) => ({ ...prev, status: "uploading" }));
 
-        const putRes = await fetch(initData.uploadUrl, {
-          method: "PUT",
-          headers: {
-            "Content-Type": initData.contentType,
-          },
-          body: file,
-        });
-
-        if (!putRes.ok) {
-          setUpload({ status: "error", error: `Upload failed (${putRes.status})` });
-          return;
+        updateUpload(task.id, { status: "uploading", progress: 0 });
+        try {
+          await uploadWithProgress(
+            initData.uploadUrl,
+            initData.contentType,
+            task.file,
+            (progress) => updateUpload(task.id, { progress }),
+          );
+        } catch (error) {
+          updateUpload(task.id, {
+            status: "error",
+            error: (error as Error).message,
+          });
+          continue;
         }
 
-        setUpload((prev) => ({ ...prev, status: "finalizing" }));
+        updateUpload(task.id, { status: "finalizing" });
         const completeRes = await fetch("/api/uploads/complete", {
           method: "POST",
           headers: {
@@ -249,25 +350,46 @@ function App() {
         });
 
         if (!completeRes.ok) {
-          setUpload({ status: "error", error: `Complete failed (${completeRes.status})` });
-          return;
+          updateUpload(task.id, {
+            status: "error",
+            error: `Complete failed (${completeRes.status})`,
+          });
+          continue;
         }
 
-        setUpload((prev) => ({
-          ...prev,
-          status: "done",
-          done: (prev.done || 0) + 1,
-        }));
+        updateUpload(task.id, { status: "done", progress: 100 });
       }
 
-      event.target.value = "";
       await fetchLibrary(auth.user.access_token);
     } catch (err) {
-      setUpload({ status: "error", error: (err as Error).message });
+      const message = (err as Error).message;
+      setUploads((prev) =>
+        prev.map((item) =>
+          ["queued", "hashing", "init", "uploading", "finalizing"].includes(item.status)
+            ? { ...item, status: "error", error: message }
+            : item,
+        ),
+      );
     }
   }
 
+  function handleUploadInput(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    void handleUploadFiles(files);
+  }
+
   const currentItem = viewerIndex !== null ? gridItems[viewerIndex] : null;
+  const uploadCounts = uploads.reduce(
+    (acc, item) => {
+      if (item.status === "done" || item.status === "duplicate") acc.completed += 1;
+      else if (item.status === "error") acc.failed += 1;
+      else acc.active += 1;
+      return acc;
+    },
+    { active: 0, completed: 0, failed: 0 },
+  );
+  const showUploadPanel = uploads.length > 0;
 
   function groupByYear(items: LibraryItem[]) {
     const groups: Record<string, LibraryItem[]> = {};
@@ -412,7 +534,7 @@ function App() {
             <input
               type="file"
               multiple
-              onChange={handleUpload}
+              onChange={handleUploadInput}
               disabled={auth.status !== "authenticated"}
             />
             <span className="icon">+</span>
@@ -490,10 +612,7 @@ function App() {
                       setIsDragging(false);
                       const files = event.dataTransfer?.files;
                       if (!files || files.length === 0) return;
-                      handleUpload(
-                        { target: event.currentTarget } as unknown as ChangeEvent<HTMLInputElement>,
-                        Array.from(files),
-                      );
+                      void handleUploadFiles(Array.from(files));
                     }}
                   >
                     <div className="grid">
@@ -587,6 +706,73 @@ function App() {
             )}
           </div>
         </div>
+      )}
+
+      {showUploadPanel && (
+        <aside className={`upload-panel ${uploadPanelOpen ? "" : "collapsed"}`}>
+          <div className="upload-header">
+            <div className="upload-title">
+              Uploads
+              {(uploadCounts.active > 0 || uploadCounts.completed > 0) && (
+                <span className="upload-count">
+                  {uploadCounts.active} active · {uploadCounts.completed} done
+                  {uploadCounts.failed > 0 ? ` · ${uploadCounts.failed} failed` : ""}
+                </span>
+              )}
+            </div>
+            <div className="upload-actions">
+              <button
+                className="upload-link"
+                onClick={() =>
+                  setUploads((prev) =>
+                    prev.filter(
+                      (item) => item.status !== "done" && item.status !== "duplicate",
+                    ),
+                  )
+                }
+              >
+                Clear done
+              </button>
+              <button
+                className="upload-link"
+                onClick={() => setUploadPanelOpen((prev) => !prev)}
+              >
+                {uploadPanelOpen ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+          {uploadPanelOpen && (
+            <div className="upload-body">
+              {uploads.map((item) => (
+                <div key={item.id} className="upload-item">
+                  <span className={`upload-dot ${item.status}`} />
+                  <div className="upload-meta">
+                    <div className="upload-name">{item.name}</div>
+                    <div className="upload-status">
+                      {item.status === "queued" && "Queued"}
+                      {item.status === "hashing" && "Hashing"}
+                      {item.status === "init" && "Preparing"}
+                      {item.status === "uploading" &&
+                        `Uploading${item.progress ? ` ${item.progress}%` : ""}`}
+                      {item.status === "finalizing" && "Finalizing"}
+                      {item.status === "done" && "Done"}
+                      {item.status === "duplicate" && "Duplicate"}
+                      {item.status === "error" && (item.error || "Failed")}
+                    </div>
+                    {item.status === "uploading" && (
+                      <div className="upload-progress">
+                        <div
+                          className="upload-progress-bar"
+                          style={{ width: `${item.progress || 0}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </aside>
       )}
     </div>
   );
