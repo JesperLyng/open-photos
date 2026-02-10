@@ -10,6 +10,7 @@ function mapAsset(item, thumbUrl, originalUrl) {
     original: item.original,
     derived: item.derived,
     metadata: item.metadata,
+    tags: item.tags,
     thumbUrl,
     originalUrl,
   };
@@ -59,6 +60,40 @@ export function registerAssetRoutes(app) {
       await asset.deleteOne();
 
       return { ok: true };
+    },
+  );
+
+  app.patch(
+    "/api/assets/:id/tags",
+    { preHandler: [app.requireAuth] },
+    async (request) => {
+      const assetId = request.params.id;
+      const asset = await MediaAsset.findOne({ _id: assetId, ownerId: request.user.id });
+      if (!asset) {
+        throw app.httpErrors.notFound("asset not found");
+      }
+
+      const { tags } = request.body || {};
+      if (!Array.isArray(tags)) {
+        throw app.httpErrors.badRequest("tags must be an array");
+      }
+
+      const normalized: string[] = [];
+      const seen = new Set<string>();
+      for (const tag of tags) {
+        if (typeof tag !== "string") continue;
+        const trimmed = tag.replace(/\s+/g, " ").trim();
+        if (!trimmed) continue;
+        const key = trimmed.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        normalized.push(trimmed.slice(0, 64));
+      }
+
+      asset.tags = normalized;
+      await asset.save();
+
+      return { ok: true, tags: asset.tags };
     },
   );
 }

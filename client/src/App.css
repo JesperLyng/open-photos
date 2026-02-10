@@ -291,8 +291,69 @@ pre {
 
 .viewer-topbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 0.5rem;
+}
+
+.viewer-actions-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.viewer-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(148, 163, 184, 0.2);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  color: #e2e8f0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.tag-remove {
+  border: 0;
+  background: transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  font-size: 0.9rem;
+}
+
+.tag-input {
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  background: transparent;
+  color: #f8fafc;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  min-width: 140px;
+  font-size: 0.9rem;
+  outline: none;
+  user-select: text;
+}
+
+.tag-input::placeholder {
+  color: rgba(226, 232, 240, 0.6);
 }
 
 .viewer-close,

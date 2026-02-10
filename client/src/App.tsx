@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
   type CSSProperties,
   type Dispatch,
@@ -24,6 +25,7 @@ type LibraryItem = {
   thumbUrl?: string | null;
   originalUrl?: string | null;
   createdAt?: string;
+  tags?: string[];
   metadata?: {
     capturedAt?: string;
     width?: number;
@@ -143,6 +145,7 @@ function App() {
   }, [library.items]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [viewerAsset, setViewerAsset] = useState<LibraryItem | null>(null);
+  const [tagDraft, setTagDraft] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -775,6 +778,10 @@ function App() {
   }, [viewerIndex, auth.status, auth.user?.access_token, displayItems]);
 
   useEffect(() => {
+    setTagDraft("");
+  }, [viewerIndex]);
+
+  useEffect(() => {
     if (viewerIndex === null) return;
     const preload = (index: number) => {
       const item = displayItems[index];
@@ -813,6 +820,11 @@ function App() {
 
   function sanitizeText(value: string) {
     return value.replace(/[\u0000-\u001F\u007F]/g, "").replace(/\s+/g, " ").trim();
+  }
+
+  function normalizeTag(value: string) {
+    const cleaned = sanitizeText(value);
+    return cleaned.replace(/,+/g, " ").trim();
   }
 
   function normalizeExifValue(value: unknown) {
@@ -901,6 +913,83 @@ function App() {
     return null;
   }
 
+  const updateTags = useCallback(
+    async (nextTags: string[]) => {
+      if (!detailItem || auth.status !== "authenticated") return;
+      const assetId = detailItem.id;
+
+      setViewerAsset((prev) => (prev ? { ...prev, tags: nextTags } : prev));
+      setLibrary((prev) => {
+        if (prev.status !== "ok") return prev;
+        return {
+          ...prev,
+          items: prev.items.map((item) =>
+            item.id === assetId ? { ...item, tags: nextTags } : item,
+          ),
+        };
+      });
+
+      try {
+        const res = await fetch(`/api/assets/${assetId}/tags`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${auth.user.access_token}`,
+          },
+          body: JSON.stringify({ tags: nextTags }),
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to save tags");
+        }
+      } catch (error) {
+        console.error(error);
+        const refreshed = await fetchAsset(auth.user.access_token, assetId);
+        if (refreshed) {
+          setViewerAsset(refreshed);
+          setLibrary((prev) => {
+            if (prev.status !== "ok") return prev;
+            return {
+              ...prev,
+              items: prev.items.map((item) =>
+                item.id === assetId ? { ...item, tags: refreshed.tags } : item,
+              ),
+            };
+          });
+        }
+      }
+    },
+    [auth, detailItem, fetchAsset],
+  );
+
+  const handleTagAdd = useCallback(
+    (event: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      if (!detailItem) return;
+      const normalized = normalizeTag(tagDraft);
+      if (!normalized) return;
+      const existing = detailItem.tags || [];
+      const seen = new Set(existing.map((tag) => tag.toLowerCase()));
+      if (seen.has(normalized.toLowerCase())) {
+        setTagDraft("");
+        return;
+      }
+      void updateTags([...existing, normalized]);
+      setTagDraft("");
+    },
+    [detailItem, tagDraft, updateTags],
+  );
+
+  const handleTagRemove = useCallback(
+    (tag: string) => {
+      if (!detailItem) return;
+      const next = (detailItem.tags || []).filter((item) => item !== tag);
+      void updateTags(next);
+    },
+    [detailItem, updateTags],
+  );
+
   useEffect(() => {
     if (!gridRef.current) return;
     const node = gridRef.current;
@@ -952,13 +1041,40 @@ function App() {
           <div className={`viewer-content ${isFullscreen ? "fullscreen" : ""}`}>
             <div className="viewer-topbar">
               {!isFullscreen && (
-                <button className="viewer-close" onClick={() => setViewerIndex(null)}>
-                  Close
-                </button>
+                <div className="viewer-tags">
+                  <input
+                    className="tag-input"
+                    value={tagDraft}
+                    onChange={(event) => setTagDraft(event.target.value)}
+                    onKeyDown={handleTagAdd}
+                    placeholder="Add tag"
+                  />
+                  <div className="tag-list">
+                    {(detailItem?.tags || []).map((tag) => (
+                      <span key={tag} className="tag-pill">
+                        {tag}
+                        <button
+                          className="tag-remove"
+                          onClick={() => handleTagRemove(tag)}
+                          aria-label={`Remove ${tag}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
-              <button className="viewer-fullscreen" onClick={toggleFullscreen}>
-                {isFullscreen ? "Exit full screen" : "Full screen"}
-              </button>
+              <div className="viewer-actions-inline">
+                {!isFullscreen && (
+                  <button className="viewer-close" onClick={() => setViewerIndex(null)}>
+                    Close
+                  </button>
+                )}
+                <button className="viewer-fullscreen" onClick={toggleFullscreen}>
+                  {isFullscreen ? "Exit full screen" : "Full screen"}
+                </button>
+              </div>
             </div>
             <div className={`viewer-body ${isFullscreen ? "fullscreen" : ""}`}>
               {(() => {

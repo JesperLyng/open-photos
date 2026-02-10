@@ -38,6 +38,7 @@ const mediaAssetSchema = new Schema(
     },
     filename: { type: String },
     checksum: { type: String, index: true },
+    tags: { type: [String], default: [] },
   },
   { timestamps: true },
 );

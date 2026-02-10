@@ -39,6 +39,7 @@ export function registerLibraryRoutes(app) {
             original: item.original,
             derived: item.derived,
             metadata,
+            tags: item.tags,
             thumbUrl,
             originalUrl,
           };
