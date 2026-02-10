@@ -25,8 +25,7 @@ export async function processMediaAsset(assetId, options: ProcessOptions = {}) {
         const originalBuffer = await getObjectBuffer({key: asset.original.key});
         const image = sharp(originalBuffer);
         const metadata = await image.metadata();
-        const metadataOrientation =
-            typeof metadata.orientation === "number" ? metadata.orientation : undefined;
+        const metadataOrientation = metadata.orientation;
 
         let derived = asset.derived || {};
         if (regenerateDerived) {

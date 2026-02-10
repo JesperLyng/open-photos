@@ -1,5 +1,6 @@
 import {
   memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -7,6 +8,9 @@ import {
   type ChangeEvent,
   type MouseEvent,
   type CSSProperties,
+  type Dispatch,
+  type SetStateAction,
+  type RefObject,
 } from "react";
 import { getUser, handleCallback, login, logout, signup } from "./auth/oidc";
 import "./App.css";
@@ -65,6 +69,59 @@ type DateGroup = {
   rows: LayoutRow[];
 };
 
+function getOrientationTransform(orientation?: number) {
+  switch (orientation) {
+    case 2:
+      return "scaleX(-1)";
+    case 3:
+      return "rotate(180deg)";
+    case 4:
+      return "scaleY(-1)";
+    case 5:
+      return "rotate(90deg) scaleX(-1)";
+    case 6:
+      return "rotate(90deg)";
+    case 7:
+      return "rotate(270deg) scaleX(-1)";
+    case 8:
+      return "rotate(270deg)";
+    default:
+      return "";
+  }
+}
+
+function uploadWithProgress(
+  url: string,
+  contentType: string,
+  file: File,
+  onProgress: (value: number) => void,
+) {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", contentType);
+
+    xhr.upload.addEventListener("progress", (event) => {
+      if (!event.lengthComputable) return;
+      const percent = Math.round((event.loaded / event.total) * 100);
+      onProgress(percent);
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve();
+      } else {
+        reject(new Error(`Upload failed (${xhr.status})`));
+      }
+    });
+
+    xhr.addEventListener("error", () => reject(new Error("Upload failed")));
+    xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
+    xhr.send(file);
+  });
+}
+
 function App() {
   const [auth, setAuth] = useState({ status: "loading" });
   const [library, setLibrary] = useState<{
@@ -73,7 +130,17 @@ function App() {
     nextCursor?: string | null;
     error?: string;
   }>({ status: "idle", items: [] });
-  const gridItems = library.items;
+  const gridItems = useMemo(() => {
+    const seen = new Set<string>();
+    const unique: LibraryItem[] = [];
+    for (const item of library.items) {
+      if (!item?.id) continue;
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      unique.push(item);
+    }
+    return unique;
+  }, [library.items]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [viewerAsset, setViewerAsset] = useState<LibraryItem | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -141,7 +208,7 @@ function App() {
     login();
   }, [auth.status]);
 
-  async function fetchLibrary(token: string) {
+  const fetchLibrary = useCallback(async (token: string) => {
     const collected: LibraryItem[] = [];
     let cursor: string | null = null;
     let page = 0;
@@ -170,10 +237,19 @@ function App() {
       if (!cursor || batch.length === 0 || page > 50) break;
     }
 
-    setLibrary({ status: "ok", items: collected, nextCursor: cursor });
-  }
+    const seen = new Set<string>();
+    const unique: LibraryItem[] = [];
+    for (const item of collected) {
+      if (!item?.id) continue;
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      unique.push(item);
+    }
 
-  async function fetchAsset(token: string, assetId: string) {
+    setLibrary({ status: "ok", items: unique, nextCursor: cursor });
+  }, []);
+
+  const fetchAsset = useCallback(async (token: string, assetId: string) => {
     const res = await fetch(`/api/assets/${assetId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -185,7 +261,7 @@ function App() {
     }
 
     return res.json();
-  }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -258,14 +334,14 @@ function App() {
     };
   }, [auth, apiOrigin]);
 
-  async function computeSHA256(file: File) {
+  const computeSHA256 = useCallback(async (file: File) => {
     const buffer = await file.arrayBuffer();
     const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-  }
+  }, []);
 
-  function addUploads(files: File[]) {
+  const addUploads = useCallback((files: File[]) => {
     const tasks = files.map((file) => ({ id: crypto.randomUUID(), file }));
     setUploads((prev) => [
       ...tasks.map((task) => ({
@@ -277,161 +353,118 @@ function App() {
     ]);
     setUploadPanelOpen(true);
     return tasks;
-  }
+  }, []);
 
-  function updateUpload(id: string, patch: Partial<UploadItem>) {
+  const updateUpload = useCallback((id: string, patch: Partial<UploadItem>) => {
     setUploads((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
-  }
+  }, []);
 
-  function uploadWithProgress(
-    url: string,
-    contentType: string,
-    file: File,
-    onProgress: (value: number) => void,
-  ) {
-    return new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("PUT", url);
-      xhr.setRequestHeader("Content-Type", contentType);
+  const handleUploadFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0 || auth.status !== "authenticated") return;
+      const tasks = addUploads(files);
 
-      xhr.upload.addEventListener("progress", (event) => {
-        if (!event.lengthComputable) return;
-        const percent = Math.round((event.loaded / event.total) * 100);
-        onProgress(percent);
-      });
+      try {
+        for (const task of tasks) {
+          updateUpload(task.id, { status: "hashing" });
+          const checksum = await computeSHA256(task.file);
+          updateUpload(task.id, { status: "init" });
 
-      xhr.addEventListener("load", () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          onProgress(100);
-          resolve();
-        } else {
-          reject(new Error(`Upload failed (${xhr.status})`));
-        }
-      });
-
-      xhr.addEventListener("error", () => reject(new Error("Upload failed")));
-      xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
-      xhr.send(file);
-    });
-  }
-
-  async function handleUploadFiles(files: File[]) {
-    if (files.length === 0 || auth.status !== "authenticated") return;
-    const tasks = addUploads(files);
-
-    try {
-      for (const task of tasks) {
-        updateUpload(task.id, { status: "hashing" });
-        const checksum = await computeSHA256(task.file);
-        updateUpload(task.id, { status: "init" });
-
-        const initRes = await fetch("/api/uploads/init", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${auth.user.access_token}`,
-          },
-          body: JSON.stringify({
-            filename: task.file.name,
-            contentType: task.file.type || "application/octet-stream",
-            size: task.file.size,
-            checksum,
-          }),
-        });
-
-        if (!initRes.ok) {
-          updateUpload(task.id, {
-            status: "error",
-            error: `Init failed (${initRes.status})`,
+          const initRes = await fetch("/api/uploads/init", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${auth.user.access_token}`,
+            },
+            body: JSON.stringify({
+              filename: task.file.name,
+              contentType: task.file.type || "application/octet-stream",
+              size: task.file.size,
+              checksum,
+            }),
           });
-          continue;
-        }
 
-        const initData = await initRes.json();
-        if (initData.duplicate) {
-          updateUpload(task.id, { status: "duplicate", progress: 100 });
-          continue;
-        }
+          if (!initRes.ok) {
+            updateUpload(task.id, {
+              status: "error",
+              error: `Init failed (${initRes.status})`,
+            });
+            continue;
+          }
 
-        updateUpload(task.id, { status: "uploading", progress: 0 });
-        try {
-          await uploadWithProgress(
-            initData.uploadUrl,
-            initData.contentType,
-            task.file,
-            (progress) => updateUpload(task.id, { progress }),
-          );
-        } catch (error) {
-          updateUpload(task.id, {
-            status: "error",
-            error: (error as Error).message,
+          const initData = await initRes.json();
+          if (initData.duplicate) {
+            updateUpload(task.id, { status: "duplicate", progress: 100 });
+            continue;
+          }
+
+          updateUpload(task.id, { status: "uploading", progress: 0 });
+          try {
+            await uploadWithProgress(
+              initData.uploadUrl,
+              initData.contentType,
+              task.file,
+              (progress) => updateUpload(task.id, { progress }),
+            );
+          } catch (error) {
+            updateUpload(task.id, {
+              status: "error",
+              error: (error as Error).message,
+            });
+            continue;
+          }
+
+          updateUpload(task.id, { status: "finalizing" });
+          const completeRes = await fetch("/api/uploads/complete", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${auth.user.access_token}`,
+            },
+            body: JSON.stringify({
+              key: initData.key,
+              bucket: initData.bucket,
+              contentType: initData.contentType,
+              size: initData.size,
+              filename: initData.filename,
+              checksum,
+            }),
           });
-          continue;
+
+          if (!completeRes.ok) {
+            updateUpload(task.id, {
+              status: "error",
+              error: `Complete failed (${completeRes.status})`,
+            });
+            continue;
+          }
+
+          updateUpload(task.id, { status: "done", progress: 100 });
         }
 
-        updateUpload(task.id, { status: "finalizing" });
-        const completeRes = await fetch("/api/uploads/complete", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${auth.user.access_token}`,
-          },
-          body: JSON.stringify({
-            key: initData.key,
-            bucket: initData.bucket,
-            contentType: initData.contentType,
-            size: initData.size,
-            filename: initData.filename,
-            checksum,
-          }),
-        });
-
-        if (!completeRes.ok) {
-          updateUpload(task.id, {
-            status: "error",
-            error: `Complete failed (${completeRes.status})`,
-          });
-          continue;
-        }
-
-        updateUpload(task.id, { status: "done", progress: 100 });
+        await fetchLibrary(auth.user.access_token);
+      } catch (err) {
+        const message = (err as Error).message;
+        setUploads((prev) =>
+          prev.map((item) =>
+            ["queued", "hashing", "init", "uploading", "finalizing"].includes(item.status)
+              ? { ...item, status: "error", error: message }
+              : item,
+          ),
+        );
       }
-
-      await fetchLibrary(auth.user.access_token);
-    } catch (err) {
-      const message = (err as Error).message;
-      setUploads((prev) =>
-        prev.map((item) =>
-          ["queued", "hashing", "init", "uploading", "finalizing"].includes(item.status)
-            ? { ...item, status: "error", error: message }
-            : item,
-        ),
-      );
-    }
-  }
-
-  function handleUploadInput(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || []);
-    event.target.value = "";
-    void handleUploadFiles(files);
-  }
-
-  const currentItem = viewerIndex !== null ? gridItems[viewerIndex] : null;
-  const detailItem = viewerAsset || currentItem;
-  const indexById = useMemo(
-    () => new Map(gridItems.map((item, index) => [item.id, index])),
-    [gridItems],
-  );
-  const uploadCounts = uploads.reduce(
-    (acc, item) => {
-      if (item.status === "done" || item.status === "duplicate") acc.completed += 1;
-      else if (item.status === "error") acc.failed += 1;
-      else acc.active += 1;
-      return acc;
     },
-    { active: 0, completed: 0, failed: 0 },
+    [auth, addUploads, computeSHA256, fetchLibrary, updateUpload],
   );
-  const showUploadPanel = uploads.length > 0;
+
+  const handleUploadInput = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files || []);
+      event.target.value = "";
+      void handleUploadFiles(files);
+    },
+    [handleUploadFiles],
+  );
 
   function getItemDate(item: LibraryItem) {
     const dateSource = item.metadata?.capturedAt || item.createdAt;
@@ -452,27 +485,6 @@ function App() {
     if (width && height) return { ratio: width / height, fromDerived: false };
 
     return { ratio: 1, fromDerived: false };
-  }
-
-  function getOrientationTransform(orientation?: number) {
-    switch (orientation) {
-      case 2:
-        return "scaleX(-1)";
-      case 3:
-        return "rotate(180deg)";
-      case 4:
-        return "scaleY(-1)";
-      case 5:
-        return "rotate(90deg) scaleX(-1)";
-      case 6:
-        return "rotate(90deg)";
-      case 7:
-        return "rotate(270deg) scaleX(-1)";
-      case 8:
-        return "rotate(270deg)";
-      default:
-        return "";
-    }
   }
 
   function getDisplayRatio(item: LibraryItem) {
@@ -599,52 +611,93 @@ function App() {
     });
   }
 
-  function toggleSelect(index: number, event: MouseEvent) {
-    const isShift = event.shiftKey;
-    const isToggle = event.ctrlKey || event.metaKey;
-    const item = gridItems[index];
-    if (!item) return;
+  const dateGroups = useMemo(
+    () => groupByDate(gridItems, gridWidth),
+    [gridItems, gridWidth],
+  );
+  const displayItems = useMemo(() => {
+    const seen = new Set<string>();
+    const ordered: LibraryItem[] = [];
+    for (const group of dateGroups) {
+      for (const row of group.rows) {
+        for (const tile of row.tiles) {
+          if (seen.has(tile.item.id)) continue;
+          seen.add(tile.item.id);
+          ordered.push(tile.item);
+        }
+      }
+    }
+    return ordered;
+  }, [dateGroups]);
 
-    if (isShift) {
-      if (lastSelectedIndex === null) {
-        setSelection(new Set([item.id]));
+  const currentItem = viewerIndex !== null ? displayItems[viewerIndex] : null;
+  const detailItem = viewerAsset || currentItem;
+  const indexById = useMemo(
+    () => new Map(displayItems.map((item, index) => [item.id, index])),
+    [displayItems],
+  );
+  const uploadCounts = uploads.reduce(
+    (acc, item) => {
+      if (item.status === "done" || item.status === "duplicate") acc.completed += 1;
+      else if (item.status === "error") acc.failed += 1;
+      else acc.active += 1;
+      return acc;
+    },
+    { active: 0, completed: 0, failed: 0 },
+  );
+  const showUploadPanel = uploads.length > 0;
+
+  const toggleSelect = useCallback(
+    (index: number, event: MouseEvent) => {
+      const isShift = event.shiftKey;
+      const isToggle = event.ctrlKey || event.metaKey;
+      const item = displayItems[index];
+      if (!item) return;
+
+      if (isShift) {
+        if (lastSelectedIndex === null) {
+          setSelection(new Set([item.id]));
+          setLastSelectedIndex(index);
+          return;
+        }
+
+        const start = Math.min(lastSelectedIndex, index);
+        const end = Math.max(lastSelectedIndex, index);
+        const next = new Set(selection);
+        for (let i = start; i <= end; i += 1) {
+          const id = displayItems[i]?.id;
+          if (id) next.add(id);
+        }
+        setSelection(next);
         setLastSelectedIndex(index);
         return;
       }
 
-      const start = Math.min(lastSelectedIndex, index);
-      const end = Math.max(lastSelectedIndex, index);
-      const next = new Set(selection);
-      for (let i = start; i <= end; i += 1) {
-        const id = gridItems[i]?.id;
-        if (id) next.add(id);
+      if (isToggle) {
+        const next = new Set(selection);
+        if (next.has(item.id)) {
+          next.delete(item.id);
+        } else {
+          next.add(item.id);
+        }
+        setSelection(next);
+        setLastSelectedIndex(index);
+        return;
       }
-      setSelection(next);
-      return;
-    }
 
-    if (isToggle) {
-      const next = new Set(selection);
-      if (next.has(item.id)) {
-        next.delete(item.id);
-      } else {
-        next.add(item.id);
+      if (selection.size > 0) {
+        setSelection(new Set());
+        setLastSelectedIndex(null);
+        setViewerIndex(index);
+        return;
       }
-      setSelection(next);
-      setLastSelectedIndex(index);
-      return;
-    }
 
-    if (selection.size > 0) {
-      setSelection(new Set([item.id]));
-      setLastSelectedIndex(index);
-      return;
-    }
+      setViewerIndex(index);
+    },
+    [displayItems, lastSelectedIndex, selection],
+  );
 
-    setViewerIndex(index);
-  }
-
-  async function deleteSelected() {
+  const deleteSelected = useCallback(async () => {
     if (selection.size === 0) return;
     if (!window.confirm(`Delete ${selection.size} photo(s)?`)) return;
 
@@ -664,17 +717,22 @@ function App() {
     setLastSelectedIndex(null);
 
     await fetchLibrary(auth.user.access_token);
-  }
+  }, [auth, fetchLibrary, selection]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (viewerIndex === null) return;
       if (event.key === "Escape") {
-        setViewerIndex(null);
+        setSelection(new Set());
+        setLastSelectedIndex(null);
+        if (viewerIndex !== null) {
+          setViewerIndex(null);
+        }
+        return;
       }
+      if (viewerIndex === null) return;
       if (event.key === "ArrowRight") {
         setViewerIndex((prev) =>
-          prev === null ? prev : Math.min(prev + 1, gridItems.length - 1),
+          prev === null ? prev : Math.min(prev + 1, displayItems.length - 1),
         );
       }
       if (event.key === "ArrowLeft") {
@@ -684,7 +742,7 @@ function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [viewerIndex, gridItems.length]);
+  }, [viewerIndex, displayItems.length]);
 
   useEffect(() => {
     let active = true;
@@ -693,7 +751,7 @@ function App() {
         setViewerAsset(null);
         return;
       }
-      const item = gridItems[viewerIndex];
+      const item = displayItems[viewerIndex];
       if (!item) {
         setViewerAsset(null);
         return;
@@ -714,12 +772,12 @@ function App() {
     return () => {
       active = false;
     };
-  }, [viewerIndex, auth.status, auth.user?.access_token, gridItems]);
+  }, [viewerIndex, auth.status, auth.user?.access_token, displayItems]);
 
   useEffect(() => {
     if (viewerIndex === null) return;
     const preload = (index: number) => {
-      const item = gridItems[index];
+      const item = displayItems[index];
       if (!item) return;
       const url = item.originalUrl || item.thumbUrl;
       if (!url) return;
@@ -729,7 +787,7 @@ function App() {
     preload(viewerIndex);
     preload(viewerIndex + 1);
     preload(viewerIndex - 1);
-  }, [viewerIndex, gridItems]);
+  }, [viewerIndex, displayItems]);
 
   useEffect(() => {
     function onFullscreenChange() {
@@ -864,11 +922,6 @@ function App() {
       await document.exitFullscreen();
     }
   }
-
-  const dateGroups = useMemo(
-    () => groupByDate(gridItems, gridWidth),
-    [gridItems, gridWidth],
-  );
 
   return (
     <div className="page">
@@ -1045,7 +1098,7 @@ function App() {
             {!isFullscreen && (
               <div className="viewer-actions">
                 <button
-                  className="button ghost"
+                  className="button ghost light"
                   onClick={() => setViewerIndex((prev) => (prev ? prev - 1 : 0))}
                   disabled={viewerIndex === 0}
                 >
@@ -1055,10 +1108,10 @@ function App() {
                   className="button"
                   onClick={() =>
                     setViewerIndex((prev) =>
-                      prev === null ? prev : Math.min(prev + 1, gridItems.length - 1),
+                      prev === null ? prev : Math.min(prev + 1, displayItems.length - 1),
                     )
                   }
-                  disabled={viewerIndex === gridItems.length - 1}
+                  disabled={viewerIndex === displayItems.length - 1}
                 >
                   Next
                 </button>
@@ -1149,8 +1202,8 @@ const Header = memo(function Header({
 }: {
   auth: { status: string; user?: any; error?: string };
   menuOpen: boolean;
-  setMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  menuRef: React.RefObject<HTMLDivElement>;
+  setMenuOpen: Dispatch<SetStateAction<boolean>>;
+  menuRef: RefObject<HTMLDivElement>;
   handleUploadInput: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
@@ -1227,14 +1280,14 @@ const LibraryGrid = memo(function LibraryGrid({
   indexById,
   toggleSelect,
 }: {
-  gridRef: React.RefObject<HTMLElement>;
+  gridRef: RefObject<HTMLElement>;
   auth: { status: string };
   library: { status: string; items: LibraryItem[]; error?: string };
   selection: Set<string>;
   onDeleteSelected: () => void;
   dateGroups: DateGroup[];
   isDragging: boolean;
-  setIsDragging: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsDragging: Dispatch<SetStateAction<boolean>>;
   handleUploadFiles: (files: File[]) => void;
   indexById: Map<string, number>;
   toggleSelect: (index: number, event: MouseEvent) => void;
@@ -1247,7 +1300,7 @@ const LibraryGrid = memo(function LibraryGrid({
       {selection.size > 0 && (
         <div className="selection-bar">
           <div>{selection.size} selected</div>
-          <button className="button ghost" onClick={onDeleteSelected}>
+          <button className="button ghost light" onClick={onDeleteSelected}>
             Delete
           </button>
         </div>

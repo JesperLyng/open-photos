@@ -75,6 +75,11 @@
   color: #0f172a;
 }
 
+.button.ghost.light {
+  border-color: rgba(248, 250, 252, 0.6);
+  color: #f8fafc;
+}
+
 .badge {
   padding: 0.4rem 0.75rem;
   border-radius: 999px;
@@ -249,6 +254,9 @@ pre {
   padding: 0.6rem 0.9rem;
   border-radius: 12px;
   margin-bottom: 0.75rem;
+  position: sticky;
+  top: 0.5rem;
+  z-index: 5;
 }
 
 .viewer {
