@@ -259,6 +259,25 @@ pre {
   z-index: 5;
 }
 
+.selection-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.selection-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tag-pill.muted {
+  opacity: 0.55;
+}
+
 .viewer {
   position: fixed;
   inset: 0;

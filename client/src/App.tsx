@@ -146,6 +146,8 @@ function App() {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [viewerAsset, setViewerAsset] = useState<LibraryItem | null>(null);
   const [tagDraft, setTagDraft] = useState("");
+  const [bulkTagDraft, setBulkTagDraft] = useState("");
+  const [lastViewedId, setLastViewedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -650,22 +652,70 @@ function App() {
   );
   const showUploadPanel = uploads.length > 0;
 
+  const selectedItems = useMemo(
+    () => gridItems.filter((item) => selection.has(item.id)),
+    [gridItems, selection],
+  );
+
+  const selectedTagSummary = useMemo(() => {
+    if (selectedItems.length === 0) {
+      return { common: [], mixed: [] };
+    }
+    const labelByKey = new Map<string, string>();
+    let commonKeys: Set<string> | null = null;
+    const unionKeys = new Set<string>();
+
+    for (const item of selectedItems) {
+      const tags = item.tags || [];
+      const keys = new Set<string>();
+      for (const tag of tags) {
+        const key = normalizeTagKey(tag);
+        if (!key) continue;
+        keys.add(key);
+        unionKeys.add(key);
+        if (!labelByKey.has(key)) {
+          labelByKey.set(key, sanitizeText(tag));
+        }
+      }
+      if (commonKeys === null) {
+        commonKeys = new Set(keys);
+      } else {
+        commonKeys = new Set(Array.from(commonKeys).filter((key) => keys.has(key)));
+      }
+    }
+
+    const commonList = Array.from(commonKeys ?? []).map(
+      (key) => labelByKey.get(key) || key,
+    );
+    const mixedList = Array.from(unionKeys)
+      .filter((key) => !(commonKeys ?? new Set()).has(key))
+      .map((key) => labelByKey.get(key) || key);
+
+    return {
+      common: commonList.sort((a, b) => a.localeCompare(b)),
+      mixed: mixedList.sort((a, b) => a.localeCompare(b)),
+    };
+  }, [selectedItems]);
+
   const toggleSelect = useCallback(
     (index: number, event: MouseEvent) => {
       const isShift = event.shiftKey;
       const isToggle = event.ctrlKey || event.metaKey;
       const item = displayItems[index];
       if (!item) return;
+      const shiftAnchor =
+        lastSelectedIndex ??
+        (selection.size === 0 && lastViewedId ? indexById.get(lastViewedId) ?? null : null);
 
       if (isShift) {
-        if (lastSelectedIndex === null) {
+        if (shiftAnchor === null) {
           setSelection(new Set([item.id]));
           setLastSelectedIndex(index);
           return;
         }
 
-        const start = Math.min(lastSelectedIndex, index);
-        const end = Math.max(lastSelectedIndex, index);
+        const start = Math.min(shiftAnchor, index);
+        const end = Math.max(shiftAnchor, index);
         const next = new Set(selection);
         for (let i = start; i <= end; i += 1) {
           const id = displayItems[i]?.id;
@@ -697,8 +747,13 @@ function App() {
 
       setViewerIndex(index);
     },
-    [displayItems, lastSelectedIndex, selection],
+    [displayItems, indexById, lastSelectedIndex, lastViewedId, selection],
   );
+
+  const clearSelection = useCallback(() => {
+    setSelection(new Set());
+    setLastSelectedIndex(null);
+  }, []);
 
   const deleteSelected = useCallback(async () => {
     if (selection.size === 0) return;
@@ -716,11 +771,10 @@ function App() {
       ),
     );
 
-    setSelection(new Set());
-    setLastSelectedIndex(null);
+    clearSelection();
 
     await fetchLibrary(auth.user.access_token);
-  }, [auth, fetchLibrary, selection]);
+  }, [auth, clearSelection, fetchLibrary, selection]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -783,6 +837,20 @@ function App() {
 
   useEffect(() => {
     if (viewerIndex === null) return;
+    const item = displayItems[viewerIndex];
+    if (item?.id) {
+      setLastViewedId(item.id);
+    }
+  }, [viewerIndex, displayItems]);
+
+  useEffect(() => {
+    if (selection.size === 0) {
+      setBulkTagDraft("");
+    }
+  }, [selection.size]);
+
+  useEffect(() => {
+    if (viewerIndex === null) return;
     const preload = (index: number) => {
       const item = displayItems[index];
       if (!item) return;
@@ -825,6 +893,10 @@ function App() {
   function normalizeTag(value: string) {
     const cleaned = sanitizeText(value);
     return cleaned.replace(/,+/g, " ").trim();
+  }
+
+  function normalizeTagKey(value: string) {
+    return normalizeTag(value).toLowerCase();
   }
 
   function normalizeExifValue(value: unknown) {
@@ -962,6 +1034,99 @@ function App() {
     [auth, detailItem, fetchAsset],
   );
 
+  const applyTagUpdates = useCallback((updates: Map<string, string[]>) => {
+    if (updates.size === 0) return;
+    setLibrary((prev) => {
+      if (prev.status !== "ok") return prev;
+      return {
+        ...prev,
+        items: prev.items.map((item) =>
+          updates.has(item.id) ? { ...item, tags: updates.get(item.id) } : item,
+        ),
+      };
+    });
+    setViewerAsset((prev) => {
+      if (!prev || !updates.has(prev.id)) return prev;
+      return { ...prev, tags: updates.get(prev.id) };
+    });
+  }, []);
+
+  const updateTagsForAssets = useCallback(
+    async (updates: { id: string; tags: string[] }[]) => {
+      if (updates.length === 0 || auth.status !== "authenticated") return;
+      const map = new Map(updates.map((item) => [item.id, item.tags]));
+      applyTagUpdates(map);
+
+      const results = await Promise.allSettled(
+        updates.map(async (item) => {
+          const res = await fetch(`/api/assets/${item.id}/tags`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${auth.user.access_token}`,
+            },
+            body: JSON.stringify({ tags: item.tags }),
+          });
+          if (!res.ok) {
+            throw new Error(`Failed to save tags for ${item.id}`);
+          }
+          return item.id;
+        }),
+      );
+
+      const failed = results
+        .map((result, index) => (result.status === "rejected" ? updates[index].id : null))
+        .filter(Boolean) as string[];
+
+      if (failed.length > 0) {
+        for (const id of failed) {
+          const refreshed = await fetchAsset(auth.user.access_token, id);
+          if (refreshed) {
+            applyTagUpdates(new Map([[id, refreshed.tags || []]]));
+          }
+        }
+      }
+    },
+    [applyTagUpdates, auth, fetchAsset],
+  );
+
+  const handleBulkTagAdd = useCallback(
+    (event: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      if (selectedItems.length === 0) return;
+      const normalized = normalizeTag(bulkTagDraft);
+      if (!normalized) return;
+
+      const updates = selectedItems.map((item) => {
+        const existing = item.tags || [];
+        const existingKeys = new Set(existing.map((tag) => normalizeTagKey(tag)));
+        if (existingKeys.has(normalizeTagKey(normalized))) {
+          return { id: item.id, tags: existing };
+        }
+        return { id: item.id, tags: [...existing, normalized] };
+      });
+
+      void updateTagsForAssets(updates);
+      setBulkTagDraft("");
+    },
+    [bulkTagDraft, selectedItems, updateTagsForAssets],
+  );
+
+  const handleBulkTagRemove = useCallback(
+    (tag: string) => {
+      if (selectedItems.length === 0) return;
+      const key = normalizeTagKey(tag);
+      if (!key) return;
+      const updates = selectedItems.map((item) => {
+        const next = (item.tags || []).filter((value) => normalizeTagKey(value) !== key);
+        return { id: item.id, tags: next };
+      });
+      void updateTagsForAssets(updates);
+    },
+    [selectedItems, updateTagsForAssets],
+  );
+
   const handleTagAdd = useCallback(
     (event: ReactKeyboardEvent<HTMLInputElement>) => {
       if (event.key !== "Enter") return;
@@ -1027,6 +1192,12 @@ function App() {
         library={library}
         selection={selection}
         onDeleteSelected={deleteSelected}
+        onClearSelection={clearSelection}
+        selectedTags={selectedTagSummary}
+        bulkTagDraft={bulkTagDraft}
+        setBulkTagDraft={setBulkTagDraft}
+        onBulkTagAdd={handleBulkTagAdd}
+        onBulkTagRemove={handleBulkTagRemove}
         dateGroups={dateGroups}
         isDragging={isDragging}
         setIsDragging={setIsDragging}
@@ -1053,13 +1224,14 @@ function App() {
                     {(detailItem?.tags || []).map((tag) => (
                       <span key={tag} className="tag-pill">
                         {tag}
-                        <button
-                          className="tag-remove"
-                          onClick={() => handleTagRemove(tag)}
-                          aria-label={`Remove ${tag}`}
-                        >
-                          ×
-                        </button>
+                      <button
+                        className="tag-remove"
+                        onClick={() => handleTagRemove(tag)}
+                        aria-label={`Remove ${tag}`}
+                        tabIndex={-1}
+                      >
+                        ×
+                      </button>
                       </span>
                     ))}
                   </div>
@@ -1389,6 +1561,12 @@ const LibraryGrid = memo(function LibraryGrid({
   library,
   selection,
   onDeleteSelected,
+  onClearSelection,
+  selectedTags,
+  bulkTagDraft,
+  setBulkTagDraft,
+  onBulkTagAdd,
+  onBulkTagRemove,
   dateGroups,
   isDragging,
   setIsDragging,
@@ -1401,6 +1579,12 @@ const LibraryGrid = memo(function LibraryGrid({
   library: { status: string; items: LibraryItem[]; error?: string };
   selection: Set<string>;
   onDeleteSelected: () => void;
+  onClearSelection: () => void;
+  selectedTags: { common: string[]; mixed: string[] };
+  bulkTagDraft: string;
+  setBulkTagDraft: Dispatch<SetStateAction<string>>;
+  onBulkTagAdd: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
+  onBulkTagRemove: (tag: string) => void;
   dateGroups: DateGroup[];
   isDragging: boolean;
   setIsDragging: Dispatch<SetStateAction<boolean>>;
@@ -1409,13 +1593,55 @@ const LibraryGrid = memo(function LibraryGrid({
   toggleSelect: (index: number, event: MouseEvent) => void;
 }) {
   return (
-    <section className="library-section" ref={gridRef}>
+    <section
+      className="library-section"
+      ref={gridRef}
+      onClick={(event) => {
+        if (selection.size === 0) return;
+        const target = event.target as HTMLElement | null;
+        if (!target) return;
+        if (target.closest(".photo-tile")) return;
+        if (target.closest(".selection-bar")) return;
+        onClearSelection();
+      }}
+    >
       {auth.status !== "authenticated" && <p>Sign in to upload files.</p>}
       {library.status === "idle" && <p>Sign in to view your library.</p>}
       {library.status === "error" && <p className="error">{library.error}</p>}
       {selection.size > 0 && (
-        <div className="selection-bar">
-          <div>{selection.size} selected</div>
+        <div className="selection-bar" onClick={(event) => event.stopPropagation()}>
+          <div className="selection-info">
+            <div>{selection.size} selected</div>
+            <div className="selection-tags">
+              <input
+                className="tag-input"
+                value={bulkTagDraft}
+                onChange={(event) => setBulkTagDraft(event.target.value)}
+                onKeyDown={onBulkTagAdd}
+                placeholder="Add tag"
+              />
+              <div className="tag-list">
+                {selectedTags.common.map((tag) => (
+                  <span key={`common-${tag}`} className="tag-pill">
+                    {tag}
+                    <button
+                      className="tag-remove"
+                      onClick={() => onBulkTagRemove(tag)}
+                      aria-label={`Remove ${tag}`}
+                      tabIndex={-1}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {selectedTags.mixed.map((tag) => (
+                  <span key={`mixed-${tag}`} className="tag-pill muted">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
           <button className="button ghost light" onClick={onDeleteSelected}>
             Delete
           </button>
