@@ -18,16 +18,12 @@ export function registerLibraryRoutes(app) {
       const mapped = await Promise.all(
         items.map(async (item) => {
           let thumbUrl = null;
-          let originalUrl = null;
           if (item.derived?.small?.key) {
             thumbUrl = await signDownload({ key: item.derived.small.key, expiresIn: 60 * 10 });
           }
-          if (item.original?.key) {
-            originalUrl = await signDownload({ key: item.original.key, expiresIn: 60 * 10 });
-          }
 
           const metadata = item.metadata ? { ...item.metadata } : undefined;
-          if (metadata && "exif" in metadata) {
+          if (metadata?.exif) {
             delete metadata.exif;
           }
 
@@ -41,7 +37,6 @@ export function registerLibraryRoutes(app) {
             metadata,
             tags: item.tags,
             thumbUrl,
-            originalUrl,
           };
         }),
       );

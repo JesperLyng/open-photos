@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { groupByDate } from "../lib/layout";
-import type { LibraryItem } from "../types/media";
+import type { DateGroup, LibraryItem } from "../types/media";
 import type { AuthState } from "./useAuth";
 
 export type LibraryState = {
@@ -85,11 +85,14 @@ export function useLibrary({ auth, apiOrigin, gridWidth }: UseLibraryParams) {
 
     async function loadLibrary() {
       if (auth.status !== "authenticated") {
-        setLibrary({ status: "idle", items: [] });
+        if (auth.status === "anonymous") {
+          setLibrary({ status: "idle", items: [] });
+        }
         return;
       }
 
       try {
+        setLibrary((prev) => ({ ...prev, status: "loading" }));
         await fetchLibrary(auth.user.access_token);
       } catch (err) {
         if (isMounted) {
@@ -163,10 +166,36 @@ export function useLibrary({ auth, apiOrigin, gridWidth }: UseLibraryParams) {
     return unique;
   }, [library.items]);
 
-  const dateGroups = useMemo(
-    () => groupByDate(gridItems, gridWidth),
-    [gridItems, gridWidth],
-  );
+  const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const compute = () => {
+      if (cancelled) return;
+      setDateGroups(groupByDate(gridItems, gridWidth));
+    };
+
+    type IdleCallback = (deadline: { timeRemaining: () => number; didTimeout: boolean }) => void;
+    type IdleOptions = { timeout?: number };
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: IdleCallback, options?: IdleOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (typeof idleWindow.requestIdleCallback === "function") {
+      const id = idleWindow.requestIdleCallback(compute, { timeout: 200 });
+      return () => {
+        cancelled = true;
+        idleWindow.cancelIdleCallback?.(id);
+      };
+    }
+
+    const timeout = window.setTimeout(compute, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [gridItems, gridWidth]);
 
   const displayItems = useMemo(() => {
     const seen = new Set<string>();

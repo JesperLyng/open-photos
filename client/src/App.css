@@ -178,6 +178,8 @@ pre {
   display: flex;
   gap: 6px;
   width: 100%;
+  content-visibility: auto;
+  contain-intrinsic-size: 160px 1200px;
 }
 
 .photo-tile {

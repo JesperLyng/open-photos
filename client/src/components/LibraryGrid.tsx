@@ -70,7 +70,13 @@ export const LibraryGrid = memo(function LibraryGrid({
       }}
     >
       {authStatus !== "authenticated" && <p>Sign in to upload files.</p>}
-      {library.status === "idle" && <p>Sign in to view your library.</p>}
+      {authStatus === "loading" && <p>Checking session...</p>}
+      {authStatus === "anonymous" && library.status === "idle" && (
+        <p>Sign in to view your library.</p>
+      )}
+      {authStatus === "authenticated" && library.status === "loading" && (
+        <p>Loading library...</p>
+      )}
       {library.status === "error" && <p className="error">{library.error}</p>}
       {selection.size > 0 && (
         <div className="selection-bar" onClick={(event) => event.stopPropagation()}>
@@ -158,6 +164,9 @@ export const LibraryGrid = memo(function LibraryGrid({
                                 src={tile.item.thumbUrl}
                                 alt={tile.item.filename || "asset"}
                                 style={imgStyle}
+                                loading="lazy"
+                                decoding="async"
+                                fetchPriority="low"
                               />
                             ) : (
                               <div className="photo-img placeholder" />

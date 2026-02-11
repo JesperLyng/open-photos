@@ -43,4 +43,6 @@ const mediaAssetSchema = new Schema(
   { timestamps: true },
 );
 
+mediaAssetSchema.index({ ownerId: 1, _id: -1 });
+
 export const MediaAsset = model("MediaAsset", mediaAssetSchema);
