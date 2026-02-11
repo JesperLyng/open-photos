@@ -61,19 +61,30 @@ export function useLibrary({ auth, apiOrigin, gridWidth }: UseLibraryParams) {
     setLibrary({ status: "ok", items: unique, nextCursor: cursor });
   }, []);
 
-  const fetchAsset = useCallback(async (token: string, assetId: string) => {
-    const res = await fetch(`/api/assets/${assetId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+  const fetchAsset = useCallback(
+    async (token: string, assetId: string, include: string[] = []) => {
+      const query = new URLSearchParams();
+      if (include.length > 0) {
+        query.set("include", include.join(","));
+      }
 
-    if (!res.ok) {
-      return null;
-    }
+      const res = await fetch(
+        `/api/assets/${assetId}${query.toString() ? `?${query.toString()}` : ""}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
 
-    return res.json();
-  }, []);
+      if (!res.ok) {
+        return null;
+      }
+
+      return res.json();
+    },
+    [],
+  );
 
   const refreshLibrary = useCallback(async () => {
     if (auth.status !== "authenticated") return;
@@ -136,7 +147,7 @@ export function useLibrary({ auth, apiOrigin, gridWidth }: UseLibraryParams) {
       try {
         const message = JSON.parse(event.data);
         if (message.type === "asset_processed") {
-          const updated = await fetchAsset(auth.user.access_token, message.assetId);
+          const updated = await fetchAsset(auth.user.access_token, message.assetId, ["thumb"]);
           if (!updated) return;
           setLibrary((prev) => ({
             ...prev,

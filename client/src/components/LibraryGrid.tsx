@@ -122,9 +122,14 @@ export const LibraryGrid = memo(function LibraryGrid({
               </div>
             </div>
           </div>
-          <button className="button ghost light" onClick={onDeleteSelected}>
-            Delete
-          </button>
+          <div className="selection-actions">
+            <button className="button ghost light" onClick={onClearSelection}>
+              Clear
+            </button>
+            <button className="button ghost light" onClick={onDeleteSelected}>
+              Delete
+            </button>
+          </div>
         </div>
       )}
       {library.status === "ok" && library.items.length === 0 && <p>No assets yet.</p>}

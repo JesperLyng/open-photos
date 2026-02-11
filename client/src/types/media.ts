@@ -5,6 +5,7 @@ export type LibraryItem = {
   original?: { key?: string };
   derived?: { small?: { width?: number; height?: number } };
   thumbUrl?: string | null;
+  previewUrl?: string | null;
   originalUrl?: string | null;
   createdAt?: string;
   tags?: string[];

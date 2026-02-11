@@ -12,7 +12,11 @@ type UseTagsParams = {
   auth: AuthState;
   detailItem: LibraryItem | null;
   selectedItems: LibraryItem[];
-  fetchAsset: (token: string, assetId: string) => Promise<LibraryItem | null>;
+  fetchAsset: (
+    token: string,
+    assetId: string,
+    include?: string[],
+  ) => Promise<LibraryItem | null>;
   applyTagsToLibrary: (updates: Map<string, string[]>) => void;
   setViewerAsset: Dispatch<SetStateAction<LibraryItem | null>>;
 };

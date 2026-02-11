@@ -1,8 +1,8 @@
 import { MediaAsset } from "../models/media-asset.ts";
 import { deleteObject, signDownload } from "../lib/storage.ts";
 
-function mapAsset(item, thumbUrl, originalUrl) {
-  return {
+function mapAsset(item, urls: { thumbUrl?: string; previewUrl?: string; originalUrl?: string }) {
+  const payload: Record<string, unknown> = {
     id: item._id,
     status: item.status,
     filename: item.filename,
@@ -11,9 +11,19 @@ function mapAsset(item, thumbUrl, originalUrl) {
     derived: item.derived,
     metadata: item.metadata,
     tags: item.tags,
-    thumbUrl,
-    originalUrl,
   };
+
+  if ("thumbUrl" in urls) {
+    payload.thumbUrl = urls.thumbUrl;
+  }
+  if ("previewUrl" in urls) {
+    payload.previewUrl = urls.previewUrl;
+  }
+  if ("originalUrl" in urls) {
+    payload.originalUrl = urls.originalUrl;
+  }
+
+  return payload;
 }
 
 export function registerAssetRoutes(app) {
@@ -27,16 +37,29 @@ export function registerAssetRoutes(app) {
         throw app.httpErrors.notFound("asset not found");
       }
 
-      let thumbUrl = null;
-      let originalUrl = null;
-      if (asset.derived?.small?.key) {
-        thumbUrl = await signDownload({ key: asset.derived.small.key, expiresIn: 60 * 10 });
+      const includeRaw = request.query.include || "";
+      const include = new Set(
+        String(includeRaw)
+          .split(",")
+          .map((part) => part.trim().toLowerCase())
+          .filter(Boolean),
+      );
+
+      const urls: { thumbUrl?: string; previewUrl?: string; originalUrl?: string } = {};
+      if (include.has("thumb") && asset.derived?.small?.key) {
+        urls.thumbUrl = await signDownload({ key: asset.derived.small.key, expiresIn: 60 * 10 });
       }
-      if (asset.original?.key) {
-        originalUrl = await signDownload({ key: asset.original.key, expiresIn: 60 * 10 });
+      if (include.has("preview") && asset.derived?.medium?.key) {
+        urls.previewUrl = await signDownload({
+          key: asset.derived.medium.key,
+          expiresIn: 60 * 10,
+        });
+      }
+      if (include.has("original") && asset.original?.key) {
+        urls.originalUrl = await signDownload({ key: asset.original.key, expiresIn: 60 * 10 });
       }
 
-      return mapAsset(asset, thumbUrl, originalUrl);
+      return mapAsset(asset, urls);
     },
   );
 
