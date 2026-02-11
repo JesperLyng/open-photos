@@ -14,9 +14,10 @@ type UseLibraryParams = {
   auth: AuthState;
   apiOrigin: string;
   gridWidth: number;
+  filter: { from: string; to: string; tags: string };
 };
 
-export function useLibrary({ auth, apiOrigin, gridWidth }: UseLibraryParams) {
+export function useLibrary({ auth, apiOrigin, gridWidth, filter }: UseLibraryParams) {
   const [library, setLibrary] = useState<LibraryState>({ status: "idle", items: [] });
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -28,6 +29,9 @@ export function useLibrary({ auth, apiOrigin, gridWidth }: UseLibraryParams) {
     while (true) {
       const query = new URLSearchParams({ limit: "200" });
       if (cursor) query.set("cursor", cursor);
+      if (filter.from) query.set("from", filter.from);
+      if (filter.to) query.set("to", filter.to);
+      if (filter.tags.trim()) query.set("tags", filter.tags.trim());
 
       const res = await fetch(`/api/library?${query.toString()}`, {
         headers: {
@@ -59,7 +63,7 @@ export function useLibrary({ auth, apiOrigin, gridWidth }: UseLibraryParams) {
     }
 
     setLibrary({ status: "ok", items: unique, nextCursor: cursor });
-  }, []);
+  }, [filter.from, filter.to, filter.tags]);
 
   const fetchAsset = useCallback(
     async (token: string, assetId: string, include: string[] = []) => {

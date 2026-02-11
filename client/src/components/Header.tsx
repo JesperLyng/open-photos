@@ -13,15 +13,48 @@ type HeaderProps = {
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
   menuRef: RefObject<HTMLDivElement>;
   onUploadInput: (event: ChangeEvent<HTMLInputElement>) => void;
+  onFilterClick: () => void;
+  filterActive: boolean;
 };
 
-export function Header({ auth, menuOpen, setMenuOpen, menuRef, onUploadInput }: HeaderProps) {
+export function Header({
+  auth,
+  menuOpen,
+  setMenuOpen,
+  menuRef,
+  onUploadInput,
+  onFilterClick,
+  filterActive,
+}: HeaderProps) {
   return (
     <header className="header">
       <div className="title">
         <h1>Open Photos</h1>
       </div>
       <div className="header-actions">
+        <button
+          className={`icon-button ${filterActive ? "active" : ""}`}
+          onClick={onFilterClick}
+          title="Filter photos"
+          aria-label="Filter photos"
+          aria-pressed={filterActive}
+        >
+          <svg
+            className="icon-svg"
+            viewBox="0 0 24 24"
+            role="img"
+            aria-hidden="true"
+          >
+            <path
+              d="M3 4h18l-7 8v6l-4 2v-8L3 4z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
         <label
           className={`icon-button ${auth.status !== "authenticated" ? "disabled" : ""}`}
           title="Upload photos"

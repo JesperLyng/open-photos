@@ -107,18 +107,20 @@ export function Viewer({
 
   const aspectRatio =
     displayWidth && displayHeight ? displayWidth / displayHeight : undefined;
+  const isPortrait =
+    displayWidth && displayHeight ? displayHeight > displayWidth : false;
 
   const frameStyle: CSSProperties = {
     ...(transform ? ({ "--img-transform": transform } as CSSProperties) : {}),
-    ...(aspectRatio ? { aspectRatio } : {}),
+    ...(!isFullscreen && aspectRatio ? { aspectRatio } : {}),
   };
 
   return (
     <div className="viewer" role="dialog" aria-modal="true" ref={viewerRef}>
       <button className="viewer-backdrop" onClick={onClose} />
       <div className={`viewer-content ${isFullscreen ? "fullscreen" : ""}`}>
-        <div className="viewer-topbar">
-          {!isFullscreen && (
+        {!isFullscreen && (
+          <div className="viewer-topbar">
             <div className="viewer-tags">
               <input
                 className="tag-input"
@@ -143,21 +145,21 @@ export function Viewer({
                 ))}
               </div>
             </div>
-          )}
-          <div className="viewer-actions-inline">
-            {!isFullscreen && (
+            <div className="viewer-actions-inline">
               <button className="viewer-close" onClick={onClose}>
                 Close
               </button>
-            )}
-            <button className="viewer-fullscreen" onClick={onToggleFullscreen}>
-              {isFullscreen ? "Exit full screen" : "Full screen"}
-            </button>
+              <button className="viewer-fullscreen" onClick={onToggleFullscreen}>
+                Full screen
+              </button>
+            </div>
           </div>
-        </div>
+        )}
         <div className={`viewer-body ${isFullscreen ? "fullscreen" : ""}`}>
           <div
-            className={`viewer-image-frame clickable ${isFullscreen ? "fullscreen" : ""}`}
+            className={`viewer-image-frame clickable ${isFullscreen ? "fullscreen" : ""} ${
+              isPortrait ? "portrait" : ""
+            }`}
             style={frameStyle}
             onClick={onToggleFullscreen}
             role="button"

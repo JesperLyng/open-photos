@@ -1,9 +1,35 @@
 import { MediaAsset } from "../models/media-asset.js";
 
-export async function listMediaAssets({ ownerId, limit, cursor }) {
+export async function listMediaAssets({ ownerId, limit, cursor, filter }) {
   const query = { ownerId };
   if (cursor) {
     query._id = { $lt: cursor };
+  }
+
+  const expr = [];
+  const dateExpr = { $ifNull: ["$metadata.capturedAt", "$createdAt"] };
+  if (filter?.from) {
+    expr.push({ $gte: [dateExpr, filter.from] });
+  }
+  if (filter?.to) {
+    expr.push({ $lte: [dateExpr, filter.to] });
+  }
+  if (filter?.tags?.length) {
+    expr.push({
+      $setIsSubset: [
+        filter.tags,
+        {
+          $map: {
+            input: { $ifNull: ["$tags", []] },
+            as: "tag",
+            in: { $toLower: "$$tag" },
+          },
+        },
+      ],
+    });
+  }
+  if (expr.length > 0) {
+    query.$expr = { $and: expr };
   }
 
   const items = await MediaAsset.find(query)

@@ -1,6 +1,21 @@
 import { listMediaAssets } from "../services/library-service.js";
 import { signDownload } from "../lib/storage.js";
 
+function parseDate(value) {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.valueOf()) ? null : parsed;
+}
+
+function parseTags(value) {
+  if (typeof value !== "string" || value.trim() === "") return [];
+  const tags = value
+    .split(",")
+    .map((tag) => tag.trim().toLowerCase())
+    .filter(Boolean);
+  return Array.from(new Set(tags));
+}
+
 export function registerLibraryRoutes(app) {
   app.get(
     "/api/library",
@@ -8,11 +23,15 @@ export function registerLibraryRoutes(app) {
     async (request) => {
       const limit = Math.min(Number(request.query.limit || 50), 200);
       const cursor = request.query.cursor || null;
+      const from = parseDate(request.query.from);
+      const to = parseDate(request.query.to);
+      const tags = parseTags(request.query.tags);
 
       const { items, nextCursor } = await listMediaAssets({
         ownerId: request.user.id,
         limit,
         cursor,
+        filter: { from, to, tags },
       });
 
       const mapped = await Promise.all(
