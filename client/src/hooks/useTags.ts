@@ -87,6 +87,7 @@ export function useTags({
       }
       applyTagsToLibrary(new Map([[assetId, nextTags]]));
 
+      let failed = false;
       try {
         const res = await fetch(`/api/assets/${assetId}/tags`, {
           method: "PATCH",
@@ -98,10 +99,15 @@ export function useTags({
         });
 
         if (!res.ok) {
-          throw new Error("Failed to save tags");
+          failed = true;
+          console.error("Failed to save tags");
         }
       } catch (error) {
+        failed = true;
         console.error(error);
+      }
+
+      if (failed) {
         const refreshed = await fetchAsset(auth.user.access_token, assetId);
         if (refreshed) {
           applyTagsToLibrary(new Map([[assetId, refreshed.tags || []]]));
@@ -196,6 +202,26 @@ export function useTags({
     [selectedItems, updateTagsForAssets],
   );
 
+  const handleBulkTagApply = useCallback(
+    (tag: string) => {
+      if (selectedItems.length === 0) return;
+      const normalized = normalizeTag(tag);
+      if (!normalized) return;
+
+      const updates = selectedItems.map((item) => {
+        const existing = item.tags || [];
+        const existingKeys = new Set(existing.map((value) => normalizeTagKey(value)));
+        if (existingKeys.has(normalizeTagKey(normalized))) {
+          return { id: item.id, tags: existing };
+        }
+        return { id: item.id, tags: [...existing, normalized] };
+      });
+
+      void updateTagsForAssets(updates);
+    },
+    [selectedItems, updateTagsForAssets],
+  );
+
   const handleTagAdd = useCallback(
     (event: ReactKeyboardEvent<HTMLInputElement>) => {
       if (event.key !== "Enter") return;
@@ -234,5 +260,6 @@ export function useTags({
     handleTagRemove,
     handleBulkTagAdd,
     handleBulkTagRemove,
+    handleBulkTagApply,
   };
 }

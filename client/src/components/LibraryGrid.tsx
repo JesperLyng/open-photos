@@ -29,6 +29,7 @@ type LibraryGridProps = {
   setBulkTagDraft: Dispatch<SetStateAction<string>>;
   onBulkTagAdd: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
   onBulkTagRemove: (tag: string) => void;
+  onBulkTagApply: (tag: string) => void;
   dateGroups: DateGroup[];
   isDragging: boolean;
   setIsDragging: Dispatch<SetStateAction<boolean>>;
@@ -49,6 +50,7 @@ export const LibraryGrid = memo(function LibraryGrid({
   setBulkTagDraft,
   onBulkTagAdd,
   onBulkTagRemove,
+  onBulkTagApply,
   dateGroups,
   isDragging,
   setIsDragging,
@@ -107,9 +109,15 @@ export const LibraryGrid = memo(function LibraryGrid({
                   </span>
                 ))}
                 {selectedTags.mixed.map((tag) => (
-                  <span key={`mixed-${tag}`} className="tag-pill muted">
+                  <button
+                    key={`mixed-${tag}`}
+                    type="button"
+                    className="tag-pill muted tag-pill-action"
+                    onClick={() => onBulkTagApply(tag)}
+                    aria-label={`Apply ${tag} to all selected photos`}
+                  >
                     {tag}
-                  </span>
+                  </button>
                 ))}
               </div>
             </div>

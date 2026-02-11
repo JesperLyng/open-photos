@@ -83,6 +83,7 @@ function App() {
     handleTagRemove,
     handleBulkTagAdd,
     handleBulkTagRemove,
+    handleBulkTagApply,
   } = useTags({
     auth,
     detailItem,
@@ -183,6 +184,7 @@ function App() {
         setBulkTagDraft={setBulkTagDraft}
         onBulkTagAdd={handleBulkTagAdd}
         onBulkTagRemove={handleBulkTagRemove}
+        onBulkTagApply={handleBulkTagApply}
         dateGroups={dateGroups}
         isDragging={isDragging}
         setIsDragging={setIsDragging}
