@@ -48,7 +48,7 @@ export async function updateTagCatalog({
         Tag.updateOne(
           { tenantId, key },
           {
-            $setOnInsert: { tenantId, key, label: afterMap.get(key) || key },
+            $setOnInsert: { tenantId, key },
             $set: { label: afterMap.get(key) || key, lastUsedAt: now },
             $inc: { count: 1 },
           },

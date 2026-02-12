@@ -48,4 +48,10 @@ const mediaAssetSchema = new Schema(
 mediaAssetSchema.index({ tenantId: 1, _id: -1 });
 mediaAssetSchema.index({ ownerId: 1, _id: -1 });
 
+mediaAssetSchema.pre("validate", function () {
+  if (!this.tenantId && this.ownerId) {
+    this.tenantId = this.ownerId;
+  }
+});
+
 export const MediaAsset = model("MediaAsset", mediaAssetSchema);
