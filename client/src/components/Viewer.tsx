@@ -25,6 +25,8 @@ type ViewerProps = {
   setTagDraft: Dispatch<SetStateAction<string>>;
   onTagAdd: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
   onTagRemove: (tag: string) => void;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
 };
 
 export function Viewer({
@@ -42,6 +44,8 @@ export function Viewer({
   setTagDraft,
   onTagAdd,
   onTagRemove,
+  isFavorite,
+  onToggleFavorite,
 }: ViewerProps) {
   const imageItem = detailItem || currentItem;
   const thumbSrc = imageItem?.thumbUrl || null;
@@ -149,8 +153,19 @@ export function Viewer({
               <button className="viewer-close" onClick={onClose}>
                 Close
               </button>
-              <button className="viewer-fullscreen" onClick={onToggleFullscreen}>
-                Full screen
+              <button
+                className={`viewer-favorite ${isFavorite ? "active" : ""}`}
+                onClick={onToggleFavorite}
+                aria-label={isFavorite ? "Remove favorite" : "Mark as favorite"}
+                aria-pressed={isFavorite}
+                type="button"
+              >
+                <svg className="heart-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M12 20.5l-1.4-1.3C6.2 15.3 3 12.4 3 8.9 3 6.6 4.8 5 7 5c1.5 0 3 .7 4 1.9C12 5.7 13.5 5 15 5c2.2 0 4 1.6 4 3.9 0 3.5-3.2 6.4-7.6 10.3L12 20.5z"
+                    fill="currentColor"
+                  />
+                </svg>
               </button>
             </div>
           </div>

@@ -6,6 +6,8 @@ import { setErrorHandlers } from "./lib/errors.js";
 import { registerUploadRoutes } from "./api/uploads.js";
 import { registerLibraryRoutes } from "./api/library.js";
 import { registerAssetRoutes } from "./api/assets.js";
+import { registerTagRoutes } from "./api/tags.js";
+import { registerAlbumRoutes } from "./api/albums.js";
 import { registerRealtime } from "./lib/realtime.js";
 import sensible from "@fastify/sensible";
 
@@ -20,6 +22,8 @@ export function buildServer() {
   registerUploadRoutes(app);
   registerLibraryRoutes(app);
   registerAssetRoutes(app);
+  registerTagRoutes(app);
+  registerAlbumRoutes(app);
   registerRealtime(app);
   setErrorHandlers(app);
 

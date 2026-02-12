@@ -7,6 +7,7 @@ export type LibraryItem = {
   thumbUrl?: string | null;
   previewUrl?: string | null;
   originalUrl?: string | null;
+  favorite?: boolean;
   createdAt?: string;
   tags?: string[];
   metadata?: {

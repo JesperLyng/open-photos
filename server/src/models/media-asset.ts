@@ -2,6 +2,7 @@ import { Schema, model } from "mongoose";
 
 const mediaAssetSchema = new Schema(
   {
+    tenantId: { type: Schema.Types.ObjectId, required: true, index: true },
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     status: {
       type: String,
@@ -36,6 +37,7 @@ const mediaAssetSchema = new Schema(
       cameraModel: { type: String },
       exif: { type: Schema.Types.Mixed },
     },
+    favorite: { type: Boolean, default: false, index: true },
     filename: { type: String },
     checksum: { type: String, index: true },
     tags: { type: [String], default: [] },
@@ -43,6 +45,7 @@ const mediaAssetSchema = new Schema(
   { timestamps: true },
 );
 
+mediaAssetSchema.index({ tenantId: 1, _id: -1 });
 mediaAssetSchema.index({ ownerId: 1, _id: -1 });
 
 export const MediaAsset = model("MediaAsset", mediaAssetSchema);

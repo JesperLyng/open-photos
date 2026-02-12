@@ -24,5 +24,13 @@ export async function requireAuth(request, reply) {
     throw new Error("missing bearer token");
   }
 
-  request.user = await authenticateToken(token);
+  const user = await authenticateToken(token);
+  request.user = {
+    id: String(user.id),
+    tenantId: String(user.id),
+    email: user.email,
+    emailVerified: user.emailVerified,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+  };
 }

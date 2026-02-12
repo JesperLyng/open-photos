@@ -1,5 +1,7 @@
 import { MediaAsset } from "../models/media-asset.ts";
+import { AlbumItem } from "../models/album-item.ts";
 import { deleteObject, signDownload } from "../lib/storage.ts";
+import { updateTagCatalog } from "../services/tag-service.ts";
 
 function mapAsset(item, urls: { thumbUrl?: string; previewUrl?: string; originalUrl?: string }) {
   const payload: Record<string, unknown> = {
@@ -10,6 +12,7 @@ function mapAsset(item, urls: { thumbUrl?: string; previewUrl?: string; original
     original: item.original,
     derived: item.derived,
     metadata: item.metadata,
+    favorite: item.favorite,
     tags: item.tags,
   };
 
@@ -26,13 +29,22 @@ function mapAsset(item, urls: { thumbUrl?: string; previewUrl?: string; original
   return payload;
 }
 
+function buildTenantFilter(tenantId, ownerId) {
+  return {
+    $or: [{ tenantId }, { tenantId: { $exists: false }, ownerId }],
+  };
+}
+
 export function registerAssetRoutes(app) {
   app.get(
     "/api/assets/:id",
     { preHandler: [app.requireAuth] },
     async (request) => {
       const assetId = request.params.id;
-      const asset = await MediaAsset.findOne({ _id: assetId, ownerId: request.user.id });
+      const asset = await MediaAsset.findOne({
+        _id: assetId,
+        ...buildTenantFilter(request.user.tenantId, request.user.id),
+      });
       if (!asset) {
         throw app.httpErrors.notFound("asset not found");
       }
@@ -68,10 +80,15 @@ export function registerAssetRoutes(app) {
     { preHandler: [app.requireAuth] },
     async (request) => {
       const assetId = request.params.id;
-      const asset = await MediaAsset.findOne({ _id: assetId, ownerId: request.user.id });
+      const asset = await MediaAsset.findOne({
+        _id: assetId,
+        ...buildTenantFilter(request.user.tenantId, request.user.id),
+      });
       if (!asset) {
         throw app.httpErrors.notFound("asset not found");
       }
+
+      const beforeTags = asset.tags || [];
 
       const keys = [
         asset.original?.key,
@@ -81,6 +98,15 @@ export function registerAssetRoutes(app) {
 
       await Promise.allSettled(keys.map((key) => deleteObject({ key })));
       await asset.deleteOne();
+      await AlbumItem.deleteMany({
+        tenantId: request.user.tenantId,
+        assetId: asset._id,
+      });
+      await updateTagCatalog({
+        tenantId: request.user.tenantId,
+        beforeTags,
+        afterTags: [],
+      });
 
       return { ok: true };
     },
@@ -91,10 +117,15 @@ export function registerAssetRoutes(app) {
     { preHandler: [app.requireAuth] },
     async (request) => {
       const assetId = request.params.id;
-      const asset = await MediaAsset.findOne({ _id: assetId, ownerId: request.user.id });
+      const asset = await MediaAsset.findOne({
+        _id: assetId,
+        ...buildTenantFilter(request.user.tenantId, request.user.id),
+      });
       if (!asset) {
         throw app.httpErrors.notFound("asset not found");
       }
+
+      const beforeTags = asset.tags || [];
 
       const { tags } = request.body || {};
       if (!Array.isArray(tags)) {
@@ -116,7 +147,62 @@ export function registerAssetRoutes(app) {
       asset.tags = normalized;
       await asset.save();
 
+      await updateTagCatalog({
+        tenantId: request.user.tenantId,
+        beforeTags,
+        afterTags: asset.tags,
+      });
+
       return { ok: true, tags: asset.tags };
+    },
+  );
+
+  app.patch(
+    "/api/assets/:id/favorite",
+    { preHandler: [app.requireAuth] },
+    async (request) => {
+      const assetId = request.params.id;
+      const asset = await MediaAsset.findOne({
+        _id: assetId,
+        ...buildTenantFilter(request.user.tenantId, request.user.id),
+      });
+      if (!asset) {
+        throw app.httpErrors.notFound("asset not found");
+      }
+
+      const { favorite } = request.body || {};
+      if (typeof favorite !== "boolean") {
+        throw app.httpErrors.badRequest("favorite must be a boolean");
+      }
+
+      asset.favorite = favorite;
+      await asset.save();
+
+      return { ok: true, favorite: asset.favorite };
+    },
+  );
+
+  app.patch(
+    "/api/assets/favorites",
+    { preHandler: [app.requireAuth] },
+    async (request) => {
+      const { ids, favorite } = request.body || {};
+      if (!Array.isArray(ids) || ids.length === 0) {
+        throw app.httpErrors.badRequest("ids must be a non-empty array");
+      }
+      if (typeof favorite !== "boolean") {
+        throw app.httpErrors.badRequest("favorite must be a boolean");
+      }
+
+      await MediaAsset.updateMany(
+        {
+          _id: { $in: ids },
+          ...buildTenantFilter(request.user.tenantId, request.user.id),
+        },
+        { $set: { favorite } },
+      );
+
+      return { ok: true };
     },
   );
 }

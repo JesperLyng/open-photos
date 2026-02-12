@@ -29,6 +29,7 @@ export function registerUploadRoutes(app) {
       }
 
       const duplicate = await findDuplicateAsset({
+        tenantId: request.user.tenantId,
         ownerId: request.user.id,
         checksum,
         size,
@@ -41,7 +42,7 @@ export function registerUploadRoutes(app) {
         };
       }
 
-      const key = randomKey(request.user.id);
+      const key = randomKey(request.user.tenantId);
       const uploadUrl = await signUpload({ key, contentType });
 
       return {
@@ -68,6 +69,7 @@ export function registerUploadRoutes(app) {
       }
 
       const asset = await createMediaAsset({
+        tenantId: request.user.tenantId,
         ownerId: request.user.id,
         key,
         bucket,

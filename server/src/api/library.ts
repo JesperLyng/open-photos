@@ -16,6 +16,11 @@ function parseTags(value) {
   return Array.from(new Set(tags));
 }
 
+function parseFavorite(value) {
+  if (value === true || value === "true" || value === "1") return true;
+  return null;
+}
+
 export function registerLibraryRoutes(app) {
   app.get(
     "/api/library",
@@ -26,12 +31,15 @@ export function registerLibraryRoutes(app) {
       const from = parseDate(request.query.from);
       const to = parseDate(request.query.to);
       const tags = parseTags(request.query.tags);
+      const favoriteOnly = parseFavorite(request.query.favorite);
+      const albumId = request.query.albumId || null;
 
       const { items, nextCursor } = await listMediaAssets({
+        tenantId: request.user.tenantId,
         ownerId: request.user.id,
         limit,
         cursor,
-        filter: { from, to, tags },
+        filter: { from, to, tags, favoriteOnly, albumId },
       });
 
       const mapped = await Promise.all(
@@ -54,6 +62,7 @@ export function registerLibraryRoutes(app) {
             original: item.original,
             derived: item.derived,
             metadata,
+            favorite: item.favorite,
             tags: item.tags,
             thumbUrl,
           };

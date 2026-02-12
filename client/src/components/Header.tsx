@@ -15,6 +15,8 @@ type HeaderProps = {
   onUploadInput: (event: ChangeEvent<HTMLInputElement>) => void;
   onFilterClick: () => void;
   filterActive: boolean;
+  onToggleFavoriteFilter: () => void;
+  favoriteFilterActive: boolean;
 };
 
 export function Header({
@@ -25,6 +27,8 @@ export function Header({
   onUploadInput,
   onFilterClick,
   filterActive,
+  onToggleFavoriteFilter,
+  favoriteFilterActive,
 }: HeaderProps) {
   return (
     <header className="header">
@@ -32,6 +36,21 @@ export function Header({
         <h1>Open Photos</h1>
       </div>
       <div className="header-actions">
+        <button
+          className={`icon-button favorite-toggle ${favoriteFilterActive ? "active" : ""}`}
+          onClick={onToggleFavoriteFilter}
+          title={favoriteFilterActive ? "Show all photos" : "Show favorites only"}
+          aria-label={favoriteFilterActive ? "Show all photos" : "Show favorites only"}
+          aria-pressed={favoriteFilterActive}
+          type="button"
+        >
+          <svg className="heart-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 20.5l-1.4-1.3C6.2 15.3 3 12.4 3 8.9 3 6.6 4.8 5 7 5c1.5 0 3 .7 4 1.9C12 5.7 13.5 5 15 5c2.2 0 4 1.6 4 3.9 0 3.5-3.2 6.4-7.6 10.3L12 20.5z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
         <button
           className={`icon-button ${filterActive ? "active" : ""}`}
           onClick={onFilterClick}

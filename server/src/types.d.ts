@@ -4,6 +4,7 @@ declare module "fastify" {
   interface FastifyRequest {
     user?: {
       id: string;
+      tenantId: string;
       email: string;
       emailVerified: boolean;
       displayName?: string;

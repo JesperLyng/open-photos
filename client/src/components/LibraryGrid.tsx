@@ -30,6 +30,13 @@ type LibraryGridProps = {
   onBulkTagAdd: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
   onBulkTagRemove: (tag: string) => void;
   onBulkTagApply: (tag: string) => void;
+  onToggleFavorites: () => void;
+  selectionFavoriteActive: boolean;
+  selectionFavoriteLabel: string;
+  onAddToAlbum: () => void;
+  showRemoveFromAlbum: boolean;
+  removeAlbumLabel: string;
+  onRemoveFromAlbum: () => void;
   dateGroups: DateGroup[];
   isDragging: boolean;
   setIsDragging: Dispatch<SetStateAction<boolean>>;
@@ -51,6 +58,13 @@ export const LibraryGrid = memo(function LibraryGrid({
   onBulkTagAdd,
   onBulkTagRemove,
   onBulkTagApply,
+  onToggleFavorites,
+  selectionFavoriteActive,
+  selectionFavoriteLabel,
+  onAddToAlbum,
+  showRemoveFromAlbum,
+  removeAlbumLabel,
+  onRemoveFromAlbum,
   dateGroups,
   isDragging,
   setIsDragging,
@@ -123,6 +137,31 @@ export const LibraryGrid = memo(function LibraryGrid({
             </div>
           </div>
           <div className="selection-actions">
+            <button
+              className={`icon-button favorite-button ${
+                selectionFavoriteActive ? "active" : ""
+              }`}
+              onClick={onToggleFavorites}
+              title={selectionFavoriteLabel}
+              aria-label={selectionFavoriteLabel}
+              aria-pressed={selectionFavoriteActive}
+              type="button"
+            >
+              <svg className="heart-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 20.5l-1.4-1.3C6.2 15.3 3 12.4 3 8.9 3 6.6 4.8 5 7 5c1.5 0 3 .7 4 1.9C12 5.7 13.5 5 15 5c2.2 0 4 1.6 4 3.9 0 3.5-3.2 6.4-7.6 10.3L12 20.5z"
+                  fill="currentColor"
+                />
+                </svg>
+            </button>
+            <button className="button ghost light" onClick={onAddToAlbum}>
+              Add to album
+            </button>
+            {showRemoveFromAlbum && (
+              <button className="button ghost light" onClick={onRemoveFromAlbum}>
+                {removeAlbumLabel}
+              </button>
+            )}
             <button className="button ghost light" onClick={onClearSelection}>
               Clear
             </button>
@@ -153,7 +192,11 @@ export const LibraryGrid = memo(function LibraryGrid({
               >
                 <div className="photo-grid">
                   {group.rows.map((row, rowIndex) => (
-                    <div key={`${group.key}-${rowIndex}`} className="photo-row">
+                    <div
+                      key={`${group.key}-${rowIndex}`}
+                      className="photo-row"
+                      style={{ "--row-height": `${Math.round(row.height)}px` } as CSSProperties}
+                    >
                       {row.tiles.map((tile) => {
                         const globalIndex = indexById.get(tile.item.id);
                         if (globalIndex === undefined) return null;
@@ -183,6 +226,16 @@ export const LibraryGrid = memo(function LibraryGrid({
                               />
                             ) : (
                               <div className="photo-img placeholder" />
+                            )}
+                            {tile.item.favorite && (
+                              <span className="photo-favorite" aria-label="Favorite">
+                                <svg className="heart-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path
+                                    d="M12 20.5l-1.4-1.3C6.2 15.3 3 12.4 3 8.9 3 6.6 4.8 5 7 5c1.5 0 3 .7 4 1.9C12 5.7 13.5 5 15 5c2.2 0 4 1.6 4 3.9 0 3.5-3.2 6.4-7.6 10.3L12 20.5z"
+                                    fill="currentColor"
+                                  />
+                                </svg>
+                              </span>
                             )}
                             {tile.item.status !== "ready" && (
                               <div className="photo-status">{tile.item.status}</div>

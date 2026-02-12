@@ -72,7 +72,7 @@ export async function listTags({ tenantId, query, limit = 200 }) {
     criteria.key = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
   }
 
-  return await Tag.find(criteria)
+  return Tag.find(criteria)
       .sort({count: -1, key: 1})
       .limit(limit)
       .select({key: 1, label: 1, count: 1, lastUsedAt: 1})

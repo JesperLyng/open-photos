@@ -1,7 +1,18 @@
 import { MediaAsset } from "../models/media-asset.js";
+import { AlbumItem } from "../models/album-item.js";
 
-export async function listMediaAssets({ ownerId, limit, cursor, filter }) {
-  const query = { ownerId };
+function addTenantFilter(query, tenantId, ownerId) {
+  const clause = { $or: [{ tenantId }, { tenantId: { $exists: false }, ownerId }] };
+  if (query.$and) {
+    query.$and.push(clause);
+  } else {
+    query.$and = [clause];
+  }
+}
+
+export async function listMediaAssets({ tenantId, ownerId, limit, cursor, filter }) {
+  const query = {};
+  addTenantFilter(query, tenantId, ownerId);
   if (cursor) {
     query._id = { $lt: cursor };
   }
@@ -28,6 +39,23 @@ export async function listMediaAssets({ ownerId, limit, cursor, filter }) {
       ],
     });
   }
+  if (filter?.favoriteOnly) {
+    query.favorite = true;
+  }
+  if (filter?.albumId) {
+    const items = await AlbumItem.find({
+      tenantId,
+      albumId: filter.albumId,
+    }).select({ assetId: 1 });
+    const ids = items.map((item) => item.assetId);
+    if (ids.length === 0) {
+      return { items: [], nextCursor: null };
+    }
+    query._id = {
+      ...(query._id || {}),
+      $in: ids,
+    };
+  }
   if (expr.length > 0) {
     query.$expr = { $and: expr };
   }
@@ -41,6 +69,7 @@ export async function listMediaAssets({ ownerId, limit, cursor, filter }) {
       createdAt: 1,
       original: 1,
       derived: 1,
+      favorite: 1,
       metadata: 1,
       tags: 1,
     })
