@@ -142,7 +142,7 @@ function App() {
       setAlbumsStatus("loading");
       const res = await fetch("/api/albums", {
         headers: {
-          Authorization: `Bearer ${auth.user.access_token}`,
+          Authorization: `Bearer ${auth.user?.access_token}`,
         },
       });
       if (!res.ok) {
@@ -172,7 +172,7 @@ function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${auth.user.access_token}`,
+          Authorization: `Bearer ${auth.user?.access_token}`,
         },
         body: JSON.stringify({ name }),
       });
@@ -198,7 +198,7 @@ function App() {
         const res = await fetch(`/api/albums/${albumId}`, {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${auth.user.access_token}`,
+            Authorization: `Bearer ${auth.user?.access_token}`,
           },
         });
         if (!res.ok) {
@@ -226,7 +226,7 @@ function App() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${auth.user.access_token}`,
+            Authorization: `Bearer ${auth.user?.access_token}`,
           },
           body: JSON.stringify({ ids }),
         });
@@ -258,7 +258,7 @@ function App() {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${auth.user.access_token}`,
+          Authorization: `Bearer ${auth.user?.access_token}`,
         },
         body: JSON.stringify({ ids }),
       });
@@ -287,7 +287,7 @@ function App() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${auth.user.access_token}`,
+            Authorization: `Bearer ${auth.user?.access_token}`,
           },
           body: JSON.stringify({ favorite }),
         });
@@ -302,7 +302,7 @@ function App() {
       }
 
       if (failed) {
-        const refreshed = await fetchAsset(auth.user.access_token, assetId, ["thumb"]);
+        const refreshed = auth.user ? await fetchAsset(auth.user.access_token, assetId, ["thumb"]) : false;
         if (refreshed) {
           applyFavoritesToLibrary(new Map([[assetId, Boolean(refreshed.favorite)]]));
           if (detailItem?.id === assetId) {
@@ -338,7 +338,7 @@ function App() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${auth.user.access_token}`,
+          Authorization: `Bearer ${auth.user?.access_token}`,
         },
         body: JSON.stringify({ ids, favorite }),
       });
@@ -373,7 +373,7 @@ function App() {
         fetch(`/api/assets/${id}`, {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${auth.user.access_token}`,
+            Authorization: `Bearer ${auth.user?.access_token}`,
           },
         }),
       ),
@@ -463,7 +463,7 @@ function App() {
         setTagSuggestionsStatus("loading");
         const res = await fetch("/api/tags", {
           headers: {
-            Authorization: `Bearer ${auth.user.access_token}`,
+            Authorization: `Bearer ${auth.user?.access_token}`,
           },
         });
         if (!res.ok) {

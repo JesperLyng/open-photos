@@ -187,10 +187,11 @@ export function Viewer({
             }}
           >
             {displaySrc ? (
-              <img
+              <div
                 className="viewer-image"
-                src={displaySrc}
-                alt={imageItem?.filename || "asset"}
+                style={{ backgroundImage: `url("${displaySrc}")` }}
+                role="img"
+                aria-label={imageItem?.filename || "asset"}
               />
             ) : (
               <div className="viewer-image placeholder" />
