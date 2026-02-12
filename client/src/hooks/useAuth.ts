@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { getUser, handleCallback, login } from "../auth/oidc";
+import { useEffect, useRef, useState } from "react";
+import { getUser, handleCallback, login, signinSilent, userManager } from "../auth/oidc";
 
 export type AuthState = {
   status: string;
@@ -9,6 +9,7 @@ export type AuthState = {
 
 export function useAuth() {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
+  const refreshRef = useRef<Promise<unknown> | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -30,9 +31,23 @@ export function useAuth() {
 
         if (user && !user.expired) {
           setAuth({ status: "authenticated", user });
-        } else {
-          setAuth({ status: "anonymous" });
+          return;
         }
+
+        if (user?.expired) {
+          try {
+            const refreshed = await signinSilent();
+            if (!isMounted) return;
+            if (refreshed && !refreshed.expired) {
+              setAuth({ status: "authenticated", user: refreshed });
+              return;
+            }
+          } catch {
+            // fall through to anonymous
+          }
+        }
+
+        setAuth({ status: "anonymous" });
       } catch (err) {
         if (isMounted) {
           setAuth({ status: "error", error: (err as Error).message });
@@ -44,6 +59,66 @@ export function useAuth() {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const refreshToken = async () => {
+      if (refreshRef.current) {
+        return refreshRef.current;
+      }
+      refreshRef.current = signinSilent()
+        .then((user) => {
+          if (!active) return;
+          if (user && !user.expired) {
+            setAuth({ status: "authenticated", user });
+          } else {
+            setAuth({ status: "anonymous" });
+          }
+        })
+        .catch(() => {
+          if (!active) return;
+          setAuth({ status: "anonymous" });
+        })
+        .finally(() => {
+          refreshRef.current = null;
+        });
+
+      return refreshRef.current;
+    };
+
+    const handleUserLoaded = (user: any) => {
+      if (!active) return;
+      if (user && !user.expired) {
+        setAuth({ status: "authenticated", user });
+      }
+    };
+    const handleUserUnloaded = () => {
+      if (!active) return;
+      setAuth({ status: "anonymous" });
+    };
+    const handleTokenExpiring = () => {
+      void refreshToken();
+    };
+    const handleTokenExpired = () => {
+      void refreshToken();
+    };
+
+    userManager.events.addUserLoaded(handleUserLoaded);
+    userManager.events.addUserUnloaded(handleUserUnloaded);
+    userManager.events.addAccessTokenExpiring(handleTokenExpiring);
+    userManager.events.addAccessTokenExpired(handleTokenExpired);
+
+    userManager.startSilentRenew?.();
+
+    return () => {
+      active = false;
+      userManager.events.removeUserLoaded(handleUserLoaded);
+      userManager.events.removeUserUnloaded(handleUserUnloaded);
+      userManager.events.removeAccessTokenExpiring(handleTokenExpiring);
+      userManager.events.removeAccessTokenExpired(handleTokenExpired);
     };
   }, []);
 
