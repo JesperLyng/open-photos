@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import { signUpload } from "../lib/storage.js";
 import { createMediaAsset, findDuplicateAsset } from "../services/media-service.js";
-import { processMediaAsset } from "../services/processing-service.js";
 import { config } from "../lib/config.js";
+import { uploadInitSchema, uploadCompleteSchema } from "../schemas/uploads.js";
+import { mediaProcessingQueue } from "../lib/queue.js";
+import { uploadRateLimit } from "../lib/security.js";
 
 function randomKey(userId) {
   const id = crypto.randomUUID();
@@ -16,13 +18,13 @@ function randomKey(userId) {
 export function registerUploadRoutes(app) {
   app.post(
     "/api/uploads/init",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: uploadInitSchema,
+      config: { rateLimit: uploadRateLimit },
+    },
     async (request) => {
-      const { filename, contentType, size, checksum } = request.body || {};
-
-      if (!contentType || !filename) {
-        throw app.httpErrors.badRequest("filename and contentType required");
-      }
+      const { filename, contentType, size, checksum } = request.body;
 
       if (!config.s3Bucket) {
         throw app.httpErrors.internalServerError("storage not configured");
@@ -60,13 +62,13 @@ export function registerUploadRoutes(app) {
 
   app.post(
     "/api/uploads/complete",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: uploadCompleteSchema,
+      config: { rateLimit: uploadRateLimit },
+    },
     async (request) => {
-      const { key, bucket, contentType, size, filename, checksum } = request.body || {};
-
-      if (!key || !bucket) {
-        throw app.httpErrors.badRequest("key and bucket required");
-      }
+      const { key, bucket, contentType, size, filename, checksum } = request.body;
 
       const asset = await createMediaAsset({
         tenantId: request.user.tenantId,
@@ -79,9 +81,15 @@ export function registerUploadRoutes(app) {
         checksum,
       });
 
-      setImmediate(() => {
-        processMediaAsset(asset.id);
-      });
+      await mediaProcessingQueue.add(
+        "process-media",
+        {
+          assetId: String(asset.id),
+          tenantId: request.user.tenantId,
+          ownerId: request.user.id,
+        },
+        { jobId: `media-${asset.id}` },
+      );
 
       return {
         id: asset.id,

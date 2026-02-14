@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { config } from "./config.js";
 import { findOrCreateUserFromClaims } from "../services/user-service.js";
+import { oidcClaimsSchema } from "../schemas/auth.js";
 
 const jwks = createRemoteJWKSet(new URL(config.oidcJwksUri));
 
@@ -10,7 +11,8 @@ export async function authenticateToken(token) {
     audience: config.oidcAudience,
   });
 
-  return findOrCreateUserFromClaims(payload);
+  const validatedClaims = oidcClaimsSchema.parse(payload);
+  return findOrCreateUserFromClaims(validatedClaims);
 }
 
 export async function requireAuth(request, reply) {

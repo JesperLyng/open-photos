@@ -1,7 +1,7 @@
 import { MediaAsset } from "../models/media-asset.js";
 import { AlbumItem } from "../models/album-item.js";
 
-function addTenantFilter(query, tenantId, ownerId) {
+function addTenantFilter(query: Record<string, any>, tenantId, ownerId) {
   const clause = { $or: [{ tenantId }, { tenantId: { $exists: false }, ownerId }] };
   if (query.$and) {
     query.$and.push(clause);
@@ -11,13 +11,13 @@ function addTenantFilter(query, tenantId, ownerId) {
 }
 
 export async function listMediaAssets({ tenantId, ownerId, limit, cursor, filter }) {
-  const query = {};
+  const query: Record<string, any> = {};
   addTenantFilter(query, tenantId, ownerId);
   if (cursor) {
     query._id = { $lt: cursor };
   }
 
-  const expr = [];
+  const expr: Record<string, any>[] = [];
   const dateExpr = { $ifNull: ["$metadata.capturedAt", "$createdAt"] };
   if (filter?.from) {
     expr.push({ $gte: [dateExpr, filter.from] });

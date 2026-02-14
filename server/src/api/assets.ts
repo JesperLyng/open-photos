@@ -1,7 +1,14 @@
-import { MediaAsset } from "../models/media-asset.ts";
-import { AlbumItem } from "../models/album-item.ts";
-import { deleteObject, signDownload } from "../lib/storage.ts";
-import { updateTagCatalog } from "../services/tag-service.ts";
+import { MediaAsset } from "../models/media-asset.js";
+import { AlbumItem } from "../models/album-item.js";
+import { deleteObject, signDownload } from "../lib/storage.js";
+import { updateTagCatalog } from "../services/tag-service.js";
+import {
+  getAssetSchema,
+  assetParamsSchema,
+  updateTagsSchema,
+  updateFavoriteSchema,
+  batchFavoritesSchema,
+} from "../schemas/assets.js";
 
 function mapAsset(item, urls: { thumbUrl?: string; previewUrl?: string; originalUrl?: string }) {
   const payload: Record<string, unknown> = {
@@ -38,9 +45,12 @@ function buildTenantFilter(tenantId, ownerId) {
 export function registerAssetRoutes(app) {
   app.get(
     "/api/assets/:id",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: getAssetSchema,
+    },
     async (request) => {
-      const assetId = request.params.id;
+      const { id: assetId } = request.params;
       const asset = await MediaAsset.findOne({
         _id: assetId,
         ...buildTenantFilter(request.user.tenantId, request.user.id),
@@ -77,9 +87,12 @@ export function registerAssetRoutes(app) {
 
   app.delete(
     "/api/assets/:id",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: assetParamsSchema,
+    },
     async (request) => {
-      const assetId = request.params.id;
+      const { id: assetId } = request.params;
       const asset = await MediaAsset.findOne({
         _id: assetId,
         ...buildTenantFilter(request.user.tenantId, request.user.id),
@@ -114,9 +127,12 @@ export function registerAssetRoutes(app) {
 
   app.patch(
     "/api/assets/:id/tags",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: updateTagsSchema,
+    },
     async (request) => {
-      const assetId = request.params.id;
+      const { id: assetId } = request.params;
       const asset = await MediaAsset.findOne({
         _id: assetId,
         ...buildTenantFilter(request.user.tenantId, request.user.id),
@@ -126,16 +142,11 @@ export function registerAssetRoutes(app) {
       }
 
       const beforeTags = asset.tags || [];
-
-      const { tags } = request.body || {};
-      if (!Array.isArray(tags)) {
-        throw app.httpErrors.badRequest("tags must be an array");
-      }
+      const { tags } = request.body;
 
       const normalized: string[] = [];
       const seen = new Set<string>();
       for (const tag of tags) {
-        if (typeof tag !== "string") continue;
         const trimmed = tag.replace(/\s+/g, " ").trim();
         if (!trimmed) continue;
         const key = trimmed.toLowerCase();
@@ -159,9 +170,12 @@ export function registerAssetRoutes(app) {
 
   app.patch(
     "/api/assets/:id/favorite",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: updateFavoriteSchema,
+    },
     async (request) => {
-      const assetId = request.params.id;
+      const { id: assetId } = request.params;
       const asset = await MediaAsset.findOne({
         _id: assetId,
         ...buildTenantFilter(request.user.tenantId, request.user.id),
@@ -170,11 +184,7 @@ export function registerAssetRoutes(app) {
         throw app.httpErrors.notFound("asset not found");
       }
 
-      const { favorite } = request.body || {};
-      if (typeof favorite !== "boolean") {
-        throw app.httpErrors.badRequest("favorite must be a boolean");
-      }
-
+      const { favorite } = request.body;
       asset.favorite = favorite;
       await asset.save();
 
@@ -184,15 +194,12 @@ export function registerAssetRoutes(app) {
 
   app.patch(
     "/api/assets/favorites",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: batchFavoritesSchema,
+    },
     async (request) => {
-      const { ids, favorite } = request.body || {};
-      if (!Array.isArray(ids) || ids.length === 0) {
-        throw app.httpErrors.badRequest("ids must be a non-empty array");
-      }
-      if (typeof favorite !== "boolean") {
-        throw app.httpErrors.badRequest("favorite must be a boolean");
-      }
+      const { ids, favorite } = request.body;
 
       await MediaAsset.updateMany(
         {

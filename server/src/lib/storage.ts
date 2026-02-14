@@ -49,11 +49,11 @@ export async function getObjectBuffer({ key }) {
   });
 
   const response = await s3.send(command);
-  const chunks = [];
-  for await (const chunk of response.Body) {
-    chunks.push(chunk);
+  if (!response.Body) {
+    throw new Error(`Empty response body for key: ${key}`);
   }
-  return Buffer.concat(chunks);
+  const bytes = await response.Body.transformToByteArray();
+  return Buffer.from(bytes);
 }
 
 export async function deleteObject({ key }) {

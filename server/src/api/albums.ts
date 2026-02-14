@@ -1,5 +1,11 @@
 import { Album } from "../models/album.js";
 import { AlbumItem } from "../models/album-item.js";
+import {
+  albumParamsSchema,
+  createAlbumSchema,
+  updateAlbumSchema,
+  albumItemsSchema,
+} from "../schemas/albums.js";
 
 function mapAlbum(album) {
   return {
@@ -24,17 +30,17 @@ export function registerAlbumRoutes(app) {
 
   app.post(
     "/api/albums",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: createAlbumSchema,
+    },
     async (request) => {
-      const { name, description } = request.body || {};
-      if (!name || typeof name !== "string") {
-        throw app.httpErrors.badRequest("name is required");
-      }
+      const { name, description } = request.body;
 
       const album = await Album.create({
         tenantId: request.user.tenantId,
-        name: name.trim().slice(0, 64),
-        description: typeof description === "string" ? description.trim().slice(0, 256) : "",
+        name: name.slice(0, 64),
+        description: description.slice(0, 256),
       });
 
       return { ok: true, album: mapAlbum(album) };
@@ -43,17 +49,17 @@ export function registerAlbumRoutes(app) {
 
   app.patch(
     "/api/albums/:id",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: updateAlbumSchema,
+    },
     async (request) => {
-      const albumId = request.params.id;
-      const { name, description } = request.body || {};
-      if (!name && !description) {
-        throw app.httpErrors.badRequest("name or description required");
-      }
+      const { id: albumId } = request.params;
+      const { name, description } = request.body;
 
       const updates: Record<string, unknown> = {};
-      if (typeof name === "string") updates.name = name.trim().slice(0, 64);
-      if (typeof description === "string") updates.description = description.trim().slice(0, 256);
+      if (name) updates.name = name.slice(0, 64);
+      if (description !== undefined) updates.description = description.slice(0, 256);
 
       const album = await Album.findOneAndUpdate(
         { _id: albumId, tenantId: request.user.tenantId },
@@ -70,9 +76,12 @@ export function registerAlbumRoutes(app) {
 
   app.delete(
     "/api/albums/:id",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: albumParamsSchema,
+    },
     async (request) => {
-      const albumId = request.params.id;
+      const { id: albumId } = request.params;
       await Album.deleteOne({ _id: albumId, tenantId: request.user.tenantId });
       await AlbumItem.deleteMany({ albumId, tenantId: request.user.tenantId });
       return { ok: true };
@@ -81,13 +90,13 @@ export function registerAlbumRoutes(app) {
 
   app.post(
     "/api/albums/:id/items",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: albumItemsSchema,
+    },
     async (request) => {
-      const albumId = request.params.id;
-      const { ids } = request.body || {};
-      if (!Array.isArray(ids) || ids.length === 0) {
-        throw app.httpErrors.badRequest("ids must be a non-empty array");
-      }
+      const { id: albumId } = request.params;
+      const { ids } = request.body;
 
       const album = await Album.findOne({ _id: albumId, tenantId: request.user.tenantId });
       if (!album) {
@@ -101,8 +110,7 @@ export function registerAlbumRoutes(app) {
       }));
       try {
         await AlbumItem.insertMany(docs, { ordered: false });
-      } catch (error) {
-        // ignore duplicate key errors
+      } catch (error: any) {
         if (error?.code !== 11000) {
           throw error;
         }
@@ -113,13 +121,13 @@ export function registerAlbumRoutes(app) {
 
   app.delete(
     "/api/albums/:id/items",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      schema: albumItemsSchema,
+    },
     async (request) => {
-      const albumId = request.params.id;
-      const { ids } = request.body || {};
-      if (!Array.isArray(ids) || ids.length === 0) {
-        throw app.httpErrors.badRequest("ids must be a non-empty array");
-      }
+      const { id: albumId } = request.params;
+      const { ids } = request.body;
 
       const album = await Album.findOne({ _id: albumId, tenantId: request.user.tenantId });
       if (!album) {

@@ -35,6 +35,7 @@ const mediaAssetSchema = new Schema(
       capturedAt: { type: Date },
       cameraMake: { type: String },
       cameraModel: { type: String },
+      orientation: { type: Number },
       exif: { type: Schema.Types.Mixed },
     },
     favorite: { type: Boolean, default: false, index: true },

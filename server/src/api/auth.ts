@@ -1,7 +1,12 @@
+import { authRateLimit } from "../lib/security.js";
+
 export function registerAuthRoutes(app) {
   app.get(
     "/api/auth/me",
-    { preHandler: [app.requireAuth] },
+    {
+      preHandler: [app.requireAuth],
+      config: { rateLimit: authRateLimit },
+    },
     async (request) => {
       const user = request.user;
       return {

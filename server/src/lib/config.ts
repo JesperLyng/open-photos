@@ -19,4 +19,10 @@ export const config = {
   s3Bucket: process.env.S3_BUCKET || "",
   s3AccessKeyId: process.env.S3_ACCESS_KEY_ID || "",
   s3SecretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "",
+  allowedOrigins: process.env.ALLOWED_ORIGINS || "http://localhost:5173",
+  rateLimitEnabled: process.env.RATE_LIMIT_ENABLED !== "false",
+  redisHost: process.env.REDIS_HOST || "127.0.0.1",
+  redisPort: Number(process.env.REDIS_PORT || 6379),
+  redisPassword: process.env.REDIS_PASSWORD || undefined,
+  redisDb: Number(process.env.REDIS_DB || 0),
 };

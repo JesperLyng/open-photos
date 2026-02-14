@@ -3,6 +3,7 @@ import exifReader from "exif-reader";
 import {MediaAsset} from "../models/media-asset.js";
 import {getObjectBuffer, putObject} from "../lib/storage.js";
 import {notifyUser} from "../lib/realtime.js";
+import {validateFileType} from "../lib/file-validation.js";
 
 const THUMBNAILS = [
     {name: "small", size: 256},
@@ -22,7 +23,17 @@ export async function processMediaAsset(assetId, options: ProcessOptions = {}) {
         asset.status = "processing";
         await asset.save();
 
-        const originalBuffer = await getObjectBuffer({key: asset.original.key});
+        const originalBuffer = await getObjectBuffer({key: asset.original!.key});
+
+        try {
+            await validateFileType(originalBuffer, asset.original!.contentType ?? undefined);
+        } catch (validationError) {
+            console.error("file validation failed", {error: validationError, assetId: asset._id.toString()});
+            asset.status = "failed";
+            await asset.save();
+            return;
+        }
+
         const image = sharp(originalBuffer);
         const metadata = await image.metadata();
         const metadataOrientation = metadata.orientation;
@@ -95,13 +106,25 @@ export async function processMediaAsset(assetId, options: ProcessOptions = {}) {
             }
         }
 
+        const exifAnyForCamera = exifData as Record<string, any> | undefined;
+        const cameraMake =
+            exifAnyForCamera?.image?.Make ??
+            exifAnyForCamera?.Image?.Make ??
+            exifAnyForCamera?.ifd0?.Make ??
+            undefined;
+        const cameraModel =
+            exifAnyForCamera?.image?.Model ??
+            exifAnyForCamera?.Image?.Model ??
+            exifAnyForCamera?.ifd0?.Model ??
+            undefined;
+
         asset.metadata = {
             width: metadata.width,
             height: metadata.height,
             format: metadata.format,
             capturedAt,
-            cameraMake: metadata.make,
-            cameraModel: metadata.model,
+            cameraMake: typeof cameraMake === "string" ? cameraMake : undefined,
+            cameraModel: typeof cameraModel === "string" ? cameraModel : undefined,
             orientation,
             exif: exifData,
         };
