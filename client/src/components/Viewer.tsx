@@ -66,8 +66,18 @@ export function Viewer({
   };
 
   useEffect(() => {
+    if (!targetSrc) {
+      setDisplaySrc(fallbackSrc);
+      return;
+    }
+    const img = new Image();
+    img.src = targetSrc;
+    if (img.complete) {
+      setDisplaySrc(targetSrc);
+      return;
+    }
     setDisplaySrc(fallbackSrc);
-  }, [imageItem?.id, fallbackSrc]);
+  }, [imageItem?.id, fallbackSrc, targetSrc]);
 
   useLayoutEffect(() => {
     if (!targetSrc) return;
