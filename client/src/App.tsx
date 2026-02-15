@@ -13,11 +13,11 @@ import {useUploads} from "./hooks/useUploads";
 import {useViewer} from "./hooks/useViewer";
 import {normalizeTag, normalizeTagKey} from "./lib/tags";
 import type {Album} from "./types/album";
+import {apiOrigin} from "./lib/api";
 import "./App.css";
 
 function App() {
   const auth = useAuth();
-  const apiOrigin = import.meta.env.VITE_API_ORIGIN || "http://localhost:3000";
   const [menuOpen, setMenuOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterDraft, setFilterDraft] = useState({ from: "", to: "", tags: [] as string[] });
@@ -52,7 +52,7 @@ function App() {
     fetchAsset,
     applyTagsToLibrary,
     applyFavoritesToLibrary,
-  } = useLibrary({ auth, apiOrigin, gridWidth, filter: activeFilter });
+  } = useLibrary({ auth, gridWidth, filter: activeFilter });
 
   const {
     viewerRef,
@@ -140,7 +140,7 @@ function App() {
     }
     try {
       setAlbumsStatus("loading");
-      const res = await fetch("/api/albums", {
+      const res = await fetch(`${apiOrigin}/api/albums`, {
         headers: {
           Authorization: `Bearer ${auth.user?.access_token}`,
         },
@@ -168,7 +168,7 @@ function App() {
     const name = newAlbumName.trim();
     if (!name) return;
     try {
-      const res = await fetch("/api/albums", {
+      const res = await fetch(`${apiOrigin}/api/albums`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -195,7 +195,7 @@ function App() {
       if (auth.status !== "authenticated") return;
       if (!window.confirm("Delete this album?")) return;
       try {
-        const res = await fetch(`/api/albums/${albumId}`, {
+        const res = await fetch(`${apiOrigin}/api/albums/${albumId}`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${auth.user?.access_token}`,
@@ -222,7 +222,7 @@ function App() {
       if (auth.status !== "authenticated" || selectedItems.length === 0) return;
       const ids = selectedItems.map((item) => item.id);
       try {
-        const res = await fetch(`/api/albums/${albumId}/items`, {
+        const res = await fetch(`${apiOrigin}/api/albums/${albumId}/items`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -254,7 +254,7 @@ function App() {
     }
     const ids = selectedItems.map((item) => item.id);
     try {
-      const res = await fetch(`/api/albums/${activeFilter.albumId}/items`, {
+      const res = await fetch(`${apiOrigin}/api/albums/${activeFilter.albumId}/items`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -283,7 +283,7 @@ function App() {
 
       let failed = false;
       try {
-        const res = await fetch(`/api/assets/${assetId}/favorite`, {
+        const res = await fetch(`${apiOrigin}/api/assets/${assetId}/favorite`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
@@ -334,7 +334,7 @@ function App() {
 
     let failed = false;
     try {
-      const res = await fetch("/api/assets/favorites", {
+      const res = await fetch(`${apiOrigin}/api/assets/favorites`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -370,7 +370,7 @@ function App() {
     const ids = Array.from(selection);
     await Promise.all(
       ids.map((id) =>
-        fetch(`/api/assets/${id}`, {
+        fetch(`${apiOrigin}/api/assets/${id}`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${auth.user?.access_token}`,
@@ -461,7 +461,7 @@ function App() {
       if (auth.status !== "authenticated" || !filterOpen) return;
       try {
         setTagSuggestionsStatus("loading");
-        const res = await fetch("/api/tags", {
+        const res = await fetch(`${apiOrigin}/api/tags`, {
           headers: {
             Authorization: `Bearer ${auth.user?.access_token}`,
           },

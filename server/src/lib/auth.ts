@@ -5,13 +5,33 @@ import { oidcClaimsSchema } from "../schemas/auth.js";
 
 const jwks = createRemoteJWKSet(new URL(config.oidcJwksUri));
 
+const userinfoUrl = config.oidcIssuer
+  ? `${config.oidcIssuer.replace(/\/$/, "")}/oidc/v1/userinfo`
+  : null;
+
 export async function authenticateToken(token) {
   const { payload } = await jwtVerify(token, jwks, {
     issuer: config.oidcIssuer,
     audience: config.oidcAudience,
   });
 
-  const validatedClaims = oidcClaimsSchema.parse(payload);
+  let claims = { ...payload };
+
+  if (!claims.email && userinfoUrl) {
+    try {
+      const res = await fetch(userinfoUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const userinfo = await res.json();
+        claims = { ...claims, ...userinfo };
+      }
+    } catch {
+      // proceed with JWT claims only
+    }
+  }
+
+  const validatedClaims = oidcClaimsSchema.parse(claims);
   return findOrCreateUserFromClaims(validatedClaims);
 }
 

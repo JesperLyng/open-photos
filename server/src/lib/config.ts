@@ -26,7 +26,7 @@ export const config = {
   s3SecretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "",
   allowedOrigins: process.env.ALLOWED_ORIGINS || "http://localhost:5173",
   rateLimitEnabled: process.env.RATE_LIMIT_ENABLED !== "false",
-  redisHost: process.env.REDIS_HOST || "127.0.0.1",
+  redisHost: process.env.REDIS_HOST || "",
   redisPort: Number(process.env.REDIS_PORT || 6379),
   redisPassword: process.env.REDIS_PASSWORD || undefined,
   redisDb: Number(process.env.REDIS_DB || 0),

@@ -18,7 +18,7 @@ async function start() {
 async function shutdown() {
   app.log.info("shutting down...");
   await app.close();
-  await mediaProcessingQueue.close();
+  await mediaProcessingQueue?.close();
   process.exit(0);
 }
 

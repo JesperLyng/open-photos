@@ -1,9 +1,15 @@
 import "dotenv/config";
 import http from "node:http";
 import { connectDb } from "./lib/db.js";
+import { redisEnabled } from "./lib/queue.js";
 import { createMediaWorker } from "./workers/media-worker.js";
 
 async function start() {
+  if (!redisEnabled) {
+    console.log("[worker] REDIS_HOST not set — media processing runs inline in the API. Worker exiting.");
+    return;
+  }
+
   await connectDb();
   const worker = createMediaWorker();
 

@@ -3,6 +3,10 @@ import { redisConnectionOptions, type MediaProcessingJobData } from "../lib/queu
 import { processMediaAsset } from "../services/processing-service.js";
 
 export function createMediaWorker() {
+  if (!redisConnectionOptions) {
+    throw new Error("Cannot create media worker without Redis configuration");
+  }
+
   const worker = new Worker<MediaProcessingJobData>(
     "media-processing",
     async (job) => {

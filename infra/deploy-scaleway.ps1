@@ -68,12 +68,12 @@ function Invoke-Checked {
   param(
     [string]$Label,
     [string]$Binary,
-    [string[]]$Args
+    [string[]]$CmdArgs
   )
   Write-Host "==> $Label"
-  & $Binary @Args
+  & $Binary @CmdArgs
   if ($LASTEXITCODE -ne 0) {
-    throw "Command failed ($Label): $Binary $($Args -join ' ')"
+    throw "Command failed ($Label): $Binary $($CmdArgs -join ' ')"
   }
 }
 
@@ -154,10 +154,10 @@ function Ensure-Container {
   }
   $args += "-w"
 
-  Invoke-Checked -Label "Deploy container: $Name" -Binary $ScwBinary -Args $args
+  Invoke-Checked -Label "Deploy container: $Name" -Binary $ScwBinary -CmdArgs $args
 
   if ($existing) {
-    Invoke-Checked -Label "Redeploy container: $Name" -Binary $ScwBinary -Args @(
+    Invoke-Checked -Label "Redeploy container: $Name" -Binary $ScwBinary -CmdArgs @(
       "container", "container", "deploy", $existing.id, "region=$Region", "-w"
     )
   }
@@ -200,10 +200,11 @@ $oidcIssuer = Get-Required -Config $cfg -Key "OIDC_ISSUER"
 $oidcJwksUri = Get-Required -Config $cfg -Key "OIDC_JWKS_URI"
 $oidcAudience = Get-Optional -Config $cfg -Key "OIDC_AUDIENCE" -Default "account,open-photos-client"
 $rateLimitEnabled = Get-Optional -Config $cfg -Key "RATE_LIMIT_ENABLED" -Default "true"
-$redisHost = Get-Required -Config $cfg -Key "REDIS_HOST"
+$redisHost = Get-Optional -Config $cfg -Key "REDIS_HOST"
 $redisPort = Get-Optional -Config $cfg -Key "REDIS_PORT" -Default "6379"
 $redisDb = Get-Optional -Config $cfg -Key "REDIS_DB" -Default "0"
 $redisPassword = Get-Optional -Config $cfg -Key "REDIS_PASSWORD"
+$redisConfigured = -not [string]::IsNullOrWhiteSpace($redisHost)
 
 $viteApiOrigin = Get-Required -Config $cfg -Key "VITE_API_ORIGIN"
 $viteOidcAuthority = Get-Required -Config $cfg -Key "VITE_OIDC_AUTHORITY"
@@ -213,7 +214,7 @@ $viteOidcSilentRedirectUri = Get-Required -Config $cfg -Key "VITE_OIDC_SILENT_RE
 $viteOidcPostLogoutRedirectUri = Get-Required -Config $cfg -Key "VITE_OIDC_POST_LOGOUT_REDIRECT_URI"
 $viteOidcScope = Get-Optional -Config $cfg -Key "VITE_OIDC_SCOPE" -Default "openid profile email"
 
-Invoke-Checked -Label "Configure scw defaults" -Binary $ScwPath -Args @(
+Invoke-Checked -Label "Configure scw defaults" -Binary $ScwPath -CmdArgs @(
   "config",
   "set",
   "default-project-id=$projectId",
@@ -234,7 +235,7 @@ if ($registryList -isnot [System.Collections.IEnumerable] -or $registryList -is 
 }
 $registry = $registryList | Where-Object { $_.name -eq $registryNamespace } | Select-Object -First 1
 if (-not $registry) {
-  Invoke-Checked -Label "Create registry namespace: $registryNamespace" -Binary $ScwPath -Args @(
+  Invoke-Checked -Label "Create registry namespace: $registryNamespace" -Binary $ScwPath -CmdArgs @(
     "registry", "namespace", "create", "name=$registryNamespace", "region=$region", "project-id=$projectId"
   )
 }
@@ -252,7 +253,7 @@ if ($containerNsList -isnot [System.Collections.IEnumerable] -or $containerNsLis
 }
 $containerNs = $containerNsList | Where-Object { $_.name -eq $containerNamespace } | Select-Object -First 1
 if (-not $containerNs) {
-  Invoke-Checked -Label "Create container namespace: $containerNamespace" -Binary $ScwPath -Args @(
+  Invoke-Checked -Label "Create container namespace: $containerNamespace" -Binary $ScwPath -CmdArgs @(
     "container", "namespace", "create", "name=$containerNamespace", "region=$region", "project-id=$projectId", "-w"
   )
   $containerNsListRaw = & $ScwPath container namespace list region=$region -o json
@@ -279,17 +280,21 @@ $workerImage = "rg.$region.scw.cloud/$registryNamespace/open-photos-worker:$tag"
 $webImage = "rg.$region.scw.cloud/$registryNamespace/open-photos-web:$tag"
 
 if (-not $SkipBuild) {
-  Invoke-Checked -Label "scw registry login" -Binary $ScwPath -Args @("registry", "login")
+  Invoke-Checked -Label "scw registry login" -Binary $ScwPath -CmdArgs @("registry", "login")
 
   Push-Location $repoRoot
   try {
-    Invoke-Checked -Label "Build API image" -Binary "docker" -Args @("build", "-f", "server/Dockerfile", "-t", $apiImage, ".")
-    Invoke-Checked -Label "Push API image" -Binary "docker" -Args @("push", $apiImage)
+    Invoke-Checked -Label "Build API image" -Binary "docker" -CmdArgs @("build", "-f", "server/Dockerfile", "-t", $apiImage, ".")
+    Invoke-Checked -Label "Push API image" -Binary "docker" -CmdArgs @("push", $apiImage)
 
-    Invoke-Checked -Label "Build worker image" -Binary "docker" -Args @("build", "-f", "server/Dockerfile.worker", "-t", $workerImage, ".")
-    Invoke-Checked -Label "Push worker image" -Binary "docker" -Args @("push", $workerImage)
+    if ($redisConfigured) {
+      Invoke-Checked -Label "Build worker image" -Binary "docker" -CmdArgs @("build", "-f", "server/Dockerfile.worker", "-t", $workerImage, ".")
+      Invoke-Checked -Label "Push worker image" -Binary "docker" -CmdArgs @("push", $workerImage)
+    } else {
+      Write-Host "==> Skipping worker image (REDIS_HOST not set)"
+    }
 
-    Invoke-Checked -Label "Build web image" -Binary "docker" -Args @(
+    Invoke-Checked -Label "Build web image" -Binary "docker" -CmdArgs @(
       "build",
       "-f", "client/Dockerfile",
       "--build-arg", "VITE_API_ORIGIN=$viteApiOrigin",
@@ -302,7 +307,7 @@ if (-not $SkipBuild) {
       "-t", $webImage,
       "."
     )
-    Invoke-Checked -Label "Push web image" -Binary "docker" -Args @("push", $webImage)
+    Invoke-Checked -Label "Push web image" -Binary "docker" -CmdArgs @("push", $webImage)
   } finally {
     Pop-Location
   }
@@ -310,8 +315,6 @@ if (-not $SkipBuild) {
 
 $apiEnv = @{
   NODE_ENV = "production"
-  HOST = "0.0.0.0"
-  PORT = "3000"
   ALLOWED_ORIGINS = $allowedOrigins
   OIDC_ISSUER = $oidcIssuer
   OIDC_AUDIENCE = $oidcAudience
@@ -320,31 +323,20 @@ $apiEnv = @{
   S3_REGION = $s3Region
   S3_BUCKET = $s3Bucket
   RATE_LIMIT_ENABLED = $rateLimitEnabled
-  REDIS_HOST = $redisHost
-  REDIS_PORT = $redisPort
-  REDIS_DB = $redisDb
 }
 $apiSecrets = @{
   MONGODB_URI = $mongoUri
   S3_ACCESS_KEY_ID = $s3AccessKeyId
   S3_SECRET_ACCESS_KEY = $s3SecretAccessKey
-  REDIS_PASSWORD = $redisPassword
 }
 
-$workerEnv = @{
-  NODE_ENV = "production"
-  S3_ENDPOINT = $s3Endpoint
-  S3_REGION = $s3Region
-  S3_BUCKET = $s3Bucket
-  REDIS_HOST = $redisHost
-  REDIS_PORT = $redisPort
-  REDIS_DB = $redisDb
-}
-$workerSecrets = @{
-  MONGODB_URI = $mongoUri
-  S3_ACCESS_KEY_ID = $s3AccessKeyId
-  S3_SECRET_ACCESS_KEY = $s3SecretAccessKey
-  REDIS_PASSWORD = $redisPassword
+if ($redisConfigured) {
+  $apiEnv["REDIS_HOST"] = $redisHost
+  $apiEnv["REDIS_PORT"] = $redisPort
+  $apiEnv["REDIS_DB"] = $redisDb
+  if (-not [string]::IsNullOrWhiteSpace($redisPassword)) {
+    $apiSecrets["REDIS_PASSWORD"] = $redisPassword
+  }
 }
 
 Ensure-Container `
@@ -362,20 +354,42 @@ Ensure-Container `
   -SecretVars $apiSecrets `
   -CommandArgs @()
 
-Ensure-Container `
-  -ScwBinary $ScwPath `
-  -Region $region `
-  -NamespaceId $containerNamespaceId `
-  -Name $workerContainerName `
-  -Image $workerImage `
-  -Port 3000 `
-  -MinScale 1 `
-  -MaxScale 1 `
-  -CpuLimit 500 `
-  -MemoryLimit 1024 `
-  -EnvVars $workerEnv `
-  -SecretVars $workerSecrets `
-  -CommandArgs @()
+if ($redisConfigured) {
+  $workerEnv = @{
+    NODE_ENV = "production"
+    S3_ENDPOINT = $s3Endpoint
+    S3_REGION = $s3Region
+    S3_BUCKET = $s3Bucket
+    REDIS_HOST = $redisHost
+    REDIS_PORT = $redisPort
+    REDIS_DB = $redisDb
+  }
+  $workerSecrets = @{
+    MONGODB_URI = $mongoUri
+    S3_ACCESS_KEY_ID = $s3AccessKeyId
+    S3_SECRET_ACCESS_KEY = $s3SecretAccessKey
+  }
+  if (-not [string]::IsNullOrWhiteSpace($redisPassword)) {
+    $workerSecrets["REDIS_PASSWORD"] = $redisPassword
+  }
+
+  Ensure-Container `
+    -ScwBinary $ScwPath `
+    -Region $region `
+    -NamespaceId $containerNamespaceId `
+    -Name $workerContainerName `
+    -Image $workerImage `
+    -Port 3000 `
+    -MinScale 1 `
+    -MaxScale 1 `
+    -CpuLimit 500 `
+    -MemoryLimit 1024 `
+    -EnvVars $workerEnv `
+    -SecretVars $workerSecrets `
+    -CommandArgs @()
+} else {
+  Write-Host "==> Skipping worker container (REDIS_HOST not set, media processing runs inline)"
+}
 
 Ensure-Container `
   -ScwBinary $ScwPath `
@@ -394,5 +408,7 @@ Ensure-Container `
 
 Write-Host "Deployment completed."
 Write-Host "API image: $apiImage"
-Write-Host "Worker image: $workerImage"
+if ($redisConfigured) {
+  Write-Host "Worker image: $workerImage"
+}
 Write-Host "Web image: $webImage"

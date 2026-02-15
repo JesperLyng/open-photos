@@ -6,6 +6,7 @@ import type {
 } from "react";
 import type { LibraryItem } from "../types/media";
 import { normalizeTag, normalizeTagKey, sanitizeText } from "../lib/tags";
+import { apiOrigin } from "../lib/api";
 import type { AuthState } from "./useAuth";
 
 type UseTagsParams = {
@@ -93,7 +94,7 @@ export function useTags({
 
       let failed = false;
       try {
-        const res = await fetch(`/api/assets/${assetId}/tags`, {
+        const res = await fetch(`${apiOrigin}/api/assets/${assetId}/tags`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
@@ -135,7 +136,7 @@ export function useTags({
 
       const results = await Promise.allSettled(
         updates.map(async (item) => {
-          const res = await fetch(`/api/assets/${item.id}/tags`, {
+          const res = await fetch(`${apiOrigin}/api/assets/${item.id}/tags`, {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",

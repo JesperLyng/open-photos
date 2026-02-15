@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import type { ChangeEvent } from "react";
 import { uploadWithProgress } from "../lib/upload";
 import type { UploadItem, UploadStatus } from "../types/media";
+import { apiOrigin } from "../lib/api";
 import type { AuthState } from "./useAuth";
 
 type UseUploadsParams = {
@@ -49,7 +50,7 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
           const checksum = await computeSHA256(task.file);
           updateUpload(task.id, { status: "init" });
 
-          const initRes = await fetch("/api/uploads/init", {
+          const initRes = await fetch(`${apiOrigin}/api/uploads/init`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -94,7 +95,7 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
           }
 
           updateUpload(task.id, { status: "finalizing" });
-          const completeRes = await fetch("/api/uploads/complete", {
+          const completeRes = await fetch(`${apiOrigin}/api/uploads/complete`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

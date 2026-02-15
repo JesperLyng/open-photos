@@ -306,10 +306,12 @@ OIDC_AUDIENCE=account,open-photos-client
 OIDC_JWKS_URI=https://auth.yourdomain.com/realms/open-photos/protocol/openid-connect/certs
 RATE_LIMIT_ENABLED=true
 
-REDIS_HOST=
-REDIS_PORT=6379
-REDIS_DB=0
-REDIS_PASSWORD=
+# Optional: set REDIS_HOST to enable the BullMQ worker container.
+# Without Redis, media processing runs inline in the API.
+#REDIS_HOST=
+#REDIS_PORT=6379
+#REDIS_DB=0
+#REDIS_PASSWORD=
 
 VITE_API_ORIGIN=https://api.yourdomain.com
 VITE_OIDC_AUTHORITY=https://auth.yourdomain.com/realms/open-photos
@@ -338,10 +340,10 @@ Server (`server/src/lib/config.ts`) expects:
 - `S3_SECRET_ACCESS_KEY`
 - `ALLOWED_ORIGINS`
 - `RATE_LIMIT_ENABLED`
-- `REDIS_HOST`
-- `REDIS_PORT`
-- `REDIS_PASSWORD`
-- `REDIS_DB`
+- `REDIS_HOST` (optional — enables BullMQ worker; without it media processes inline)
+- `REDIS_PORT` (optional)
+- `REDIS_PASSWORD` (optional)
+- `REDIS_DB` (optional)
 
 Client build-time vars:
 
@@ -356,4 +358,4 @@ Client build-time vars:
 
 - MongoDB Atlas allowlist must allow traffic from your API/Worker runtime.
 - Object storage buckets should stay private. Access is done via presigned URLs.
-- Worker deployment is required for thumbnail and metadata processing.
+- Worker deployment requires Redis. Without Redis, media processing runs inline in the API container.

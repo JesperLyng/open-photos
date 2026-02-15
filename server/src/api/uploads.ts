@@ -4,6 +4,7 @@ import { createMediaAsset, findDuplicateAsset } from "../services/media-service.
 import { config } from "../lib/config.js";
 import { uploadInitSchema, uploadCompleteSchema } from "../schemas/uploads.js";
 import { mediaProcessingQueue } from "../lib/queue.js";
+import { processMediaAsset } from "../services/processing-service.js";
 import { uploadRateLimit } from "../lib/security.js";
 
 function randomKey(userId) {
@@ -81,15 +82,21 @@ export function registerUploadRoutes(app) {
         checksum,
       });
 
-      await mediaProcessingQueue.add(
-        "process-media",
-        {
-          assetId: String(asset.id),
-          tenantId: request.user.tenantId,
-          ownerId: request.user.id,
-        },
-        { jobId: `media-${asset.id}` },
-      );
+      if (mediaProcessingQueue) {
+        await mediaProcessingQueue.add(
+          "process-media",
+          {
+            assetId: String(asset.id),
+            tenantId: request.user.tenantId,
+            ownerId: request.user.id,
+          },
+          { jobId: `media-${asset.id}` },
+        );
+      } else {
+        processMediaAsset(String(asset.id)).catch((err) => {
+          app.log.error(err, "inline media processing failed");
+        });
+      }
 
       return {
         id: asset.id,

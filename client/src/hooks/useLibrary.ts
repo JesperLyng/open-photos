@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { groupByDate } from "../lib/layout";
 import type { DateGroup, LibraryItem } from "../types/media";
+import { apiOrigin } from "../lib/api";
 import type { AuthState } from "./useAuth";
 
 export type LibraryState = {
@@ -12,12 +13,11 @@ export type LibraryState = {
 
 type UseLibraryParams = {
   auth: AuthState;
-  apiOrigin: string;
   gridWidth: number;
   filter: { from: string; to: string; tags: string; favoriteOnly: boolean; albumId: string | null };
 };
 
-export function useLibrary({ auth, apiOrigin, gridWidth, filter }: UseLibraryParams) {
+export function useLibrary({ auth, gridWidth, filter }: UseLibraryParams) {
   const [library, setLibrary] = useState<LibraryState>({ status: "idle", items: [] });
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -35,7 +35,7 @@ export function useLibrary({ auth, apiOrigin, gridWidth, filter }: UseLibraryPar
       if (filter.favoriteOnly) query.set("favorite", "true");
       if (filter.albumId) query.set("albumId", filter.albumId);
 
-      const res = await fetch(`/api/library?${query.toString()}`, {
+      const res = await fetch(`${apiOrigin}/api/library?${query.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
