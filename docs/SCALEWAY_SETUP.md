@@ -4,7 +4,7 @@ This document captures the full Scaleway setup for this project.
 
 ## Scope
 
-- Region: `nl-ams`
+- Region: `fr-par`
 - Project ID: `de5cc1f0-47c1-42b6-bcd6-b10753f4d953`
 - Database: MongoDB Atlas (kept outside Scaleway)
 - Compute/runtime: Scaleway Serverless Containers
@@ -34,10 +34,10 @@ This document captures the full Scaleway setup for this project.
 ```powershell
 $SCW = "C:\Users\Jesper\bin\scw.exe"
 $PROJECT_ID = "de5cc1f0-47c1-42b6-bcd6-b10753f4d953"
-$REGION = "nl-ams"
+$REGION = "fr-par"
 
 & $SCW init
-& $SCW config set default-project-id=$PROJECT_ID default-region=$REGION default-zone=nl-ams-1
+& $SCW config set default-project-id=$PROJECT_ID default-region=$REGION default-zone=fr-par-1
 & $SCW config get
 ```
 
@@ -75,14 +75,14 @@ $CONTAINER_NS_ID
 Create private buckets:
 
 ```powershell
-& $SCW object bucket create open-photos-originals-nl-ams region=$REGION acl=private
-& $SCW object bucket create open-photos-derived-nl-ams region=$REGION acl=private
+& $SCW object bucket create open-photos-originals-fr-par region=$REGION acl=private
+& $SCW object bucket create open-photos-derived-fr-par region=$REGION acl=private
 ```
 
 Set in server env:
 
-- `S3_ENDPOINT=https://s3.nl-ams.scw.cloud`
-- `S3_REGION=nl-ams`
+- `S3_ENDPOINT=https://s3.fr-par.scw.cloud`
+- `S3_REGION=fr-par`
 - `S3_BUCKET=<bucket-name>`
 - `S3_ACCESS_KEY_ID=<key>`
 - `S3_SECRET_ACCESS_KEY=<secret>`
@@ -128,6 +128,7 @@ docker build -f client/Dockerfile `
   --build-arg VITE_OIDC_REDIRECT_URI=https://app.yourdomain.com/callback `
   --build-arg VITE_OIDC_SILENT_REDIRECT_URI=https://app.yourdomain.com/silent-renew.html `
   --build-arg VITE_OIDC_POST_LOGOUT_REDIRECT_URI=https://app.yourdomain.com `
+  --build-arg VITE_OIDC_SCOPE="openid profile email" `
   -t $WEB_IMAGE .
 docker push $WEB_IMAGE
 ```
@@ -140,7 +141,7 @@ You can deploy API, worker, and web in one command:
 npm run deploy:scaleway
 ```
 
-This runs `infra/deploy-scaleway.ps1` and reads `.prod.env` explicitly.
+This runs `infra/deploy-scaleway.ps1` and reads `server/.prod.env` explicitly.
 
 ## 5) Create and Deploy API Container
 
@@ -174,7 +175,7 @@ Deploy API:
   environment-variables.OIDC_JWKS_URI=https://auth.yourdomain.com/realms/open-photos/protocol/openid-connect/certs `
   environment-variables.S3_ENDPOINT=https://s3.$REGION.scw.cloud `
   environment-variables.S3_REGION=$REGION `
-  environment-variables.S3_BUCKET=open-photos-originals-nl-ams `
+  environment-variables.S3_BUCKET=open-photos-originals-fr-par `
   environment-variables.RATE_LIMIT_ENABLED=true `
   environment-variables.REDIS_HOST=<redis-host> `
   environment-variables.REDIS_PORT=6379 `
@@ -212,7 +213,7 @@ Deploy API:
   environment-variables.NODE_ENV=production `
   environment-variables.S3_ENDPOINT=https://s3.$REGION.scw.cloud `
   environment-variables.S3_REGION=$REGION `
-  environment-variables.S3_BUCKET=open-photos-originals-nl-ams `
+  environment-variables.S3_BUCKET=open-photos-originals-fr-par `
   environment-variables.REDIS_HOST=<redis-host> `
   environment-variables.REDIS_PORT=6379 `
   environment-variables.REDIS_DB=0 `
@@ -281,7 +282,7 @@ Build/push new tag, then update containers:
 & $SCW registry image list region=$REGION
 ```
 
-## .prod.env Template
+## server/.prod.env Template
 
 ```dotenv
 SCW_PROJECT_ID=de5cc1f0-47c1-42b6-bcd6-b10753f4d953

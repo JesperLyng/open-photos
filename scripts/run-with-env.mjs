@@ -53,14 +53,33 @@ const fileContent = fs.readFileSync(envFile, "utf8");
 const parsed = parseEnvFile(fileContent);
 const [command, ...args] = commandParts;
 
-const child = spawn(command, args, {
-  stdio: "inherit",
-  shell: process.platform === "win32",
-  env: {
-    ...process.env,
-    ...parsed,
-    ENV_FILE: envFile,
-  },
+const childEnv = {
+  ...process.env,
+  ...parsed,
+  ENV_FILE: envFile,
+};
+
+function quoteWindowsArg(value) {
+  if (!/[ \t"]/u.test(value)) return value;
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+const child =
+  process.platform === "win32"
+    ? spawn([command, ...args].map(quoteWindowsArg).join(" "), {
+        stdio: "inherit",
+        shell: true,
+        env: childEnv,
+      })
+    : spawn(command, args, {
+        stdio: "inherit",
+        shell: false,
+        env: childEnv,
+      });
+
+child.on("error", (error) => {
+  console.error(error.message);
+  process.exit(1);
 });
 
 child.on("exit", (code, signal) => {
@@ -70,4 +89,3 @@ child.on("exit", (code, signal) => {
   }
   process.exit(code ?? 1);
 });
-

@@ -1,5 +1,5 @@
 param(
-  [string]$EnvFile = ".prod.env",
+  [string]$EnvFile = "server/.prod.env",
   [string]$ScwPath = "C:\Users\Jesper\bin\scw.exe",
   [switch]$SkipBuild
 )
@@ -155,6 +155,12 @@ function Ensure-Container {
   $args += "-w"
 
   Invoke-Checked -Label "Deploy container: $Name" -Binary $ScwBinary -Args $args
+
+  if ($existing) {
+    Invoke-Checked -Label "Redeploy container: $Name" -Binary $ScwBinary -Args @(
+      "container", "container", "deploy", $existing.id, "region=$Region", "-w"
+    )
+  }
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -369,7 +375,7 @@ Ensure-Container `
   -MemoryLimit 1024 `
   -EnvVars $workerEnv `
   -SecretVars $workerSecrets `
-  -CommandArgs @("npm", "run", "start:worker")
+  -CommandArgs @()
 
 Ensure-Container `
   -ScwBinary $ScwPath `

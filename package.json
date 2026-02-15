@@ -17,7 +17,7 @@
     "server:build": "npm --workspace server run build",
     "server:start": "npm --workspace server run start",
     "server:start:worker": "npm --workspace server run start:worker",
-    "deploy:scaleway": "powershell -ExecutionPolicy Bypass -File infra/deploy-scaleway.ps1 -EnvFile .prod.env",
+    "deploy:scaleway": "powershell -ExecutionPolicy Bypass -File infra/deploy-scaleway.ps1 -EnvFile server/.prod.env",
     "lint": "npm run lint:client && npm run lint:server",
     "lint:client": "npm --workspace client run lint",
     "lint:server": "eslint server packages",

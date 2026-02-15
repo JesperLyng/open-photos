@@ -1,4 +1,5 @@
 import "dotenv/config";
+import http from "node:http";
 import { connectDb } from "./lib/db.js";
 import { createMediaWorker } from "./workers/media-worker.js";
 
@@ -8,8 +9,18 @@ async function start() {
 
   console.log("[worker] media processing worker started");
 
+  const port = Number(process.env.PORT || 3000);
+  const healthServer = http.createServer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("ok");
+  });
+  healthServer.listen(port, "0.0.0.0", () => {
+    console.log(`[worker] health endpoint listening on :${port}`);
+  });
+
   const shutdown = async () => {
     console.log("[worker] shutting down...");
+    healthServer.close();
     await worker.close();
     process.exit(0);
   };
