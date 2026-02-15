@@ -6,7 +6,16 @@
       "Bash(npx tsc:*)",
       "Bash(node -e:*)",
       "Bash(npm uninstall:*)",
-      "Bash(npx vitest run --reporter=verbose)"
+      "Bash(npx vitest run --reporter=verbose)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npm --workspace server run build)",
+      "Bash(npm run deploy:scaleway:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File infra/deploy-scaleway.ps1 -EnvFile server/.prod.env -SkipBuild)",
+      "Bash(npm --workspace client run build)",
+      "Bash(aws:*)",
+      "Bash(node scripts/run-with-env.mjs:*)"
     ]
   }
 }
