@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "reprocess": "tsx scripts/reprocess-assets.ts",
     "dev:worker": "tsx watch src/worker.ts",
-    "start:worker": "node dist/worker.js"
+    "start:worker": "node dist/worker.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",
@@ -36,5 +38,8 @@
     "sharp": "^0.34.5",
     "ws": "^8.19.0",
     "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
   }
 }

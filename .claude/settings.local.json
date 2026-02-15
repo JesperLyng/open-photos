@@ -5,7 +5,8 @@
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
       "Bash(node -e:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(npx vitest run --reporter=verbose)"
     ]
   }
 }
