@@ -26,6 +26,7 @@ export type UploadStatus =
   | "ready"
   | "uploading"
   | "finalizing"
+  | "cancelled"
   | "done"
   | "duplicate"
   | "error";

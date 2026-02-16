@@ -124,6 +124,8 @@ function App() {
     setUploadPanelOpen,
     handleUploadFiles,
     handleUploadInput,
+    handleCancelUpload,
+    handleCancelAll,
   } = useUploads({ auth, refreshLibrary });
 
   const [isDragging, setIsDragging] = useState(false);
@@ -867,9 +869,16 @@ function App() {
           uploads={uploads}
           uploadPanelOpen={uploadPanelOpen}
           setUploadPanelOpen={setUploadPanelOpen}
+          onCancelUpload={handleCancelUpload}
+          onCancelAll={handleCancelAll}
           onClearDone={() =>
             setUploads((prev) =>
-              prev.filter((item) => item.status !== "done" && item.status !== "duplicate"),
+              prev.filter(
+                (item) =>
+                  item.status !== "done" &&
+                  item.status !== "duplicate" &&
+                  item.status !== "cancelled",
+              ),
             )
           }
         />

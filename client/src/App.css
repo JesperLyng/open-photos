@@ -1135,23 +1135,27 @@ pre {
 }
 
 .upload-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  display: grid;
+  gap: 0.2rem;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
 }
 
+.upload-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .upload-title {
-  display: grid;
-  gap: 0.2rem;
   font-weight: 600;
 }
 
 .upload-count {
   font-size: 0.78rem;
   color: #cbd5f5;
+  min-height: 1.1rem;
 }
 
 .upload-actions {
@@ -1208,6 +1212,10 @@ pre {
   background: #f59e0b;
 }
 
+.upload-dot.cancelled {
+  background: #94a3b8;
+}
+
 .upload-dot.error {
   background: #ef4444;
 }
@@ -1217,14 +1225,29 @@ pre {
   gap: 0.15rem;
 }
 
+.upload-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .upload-name {
   font-weight: 600;
   font-size: 0.95rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .upload-status {
   font-size: 0.82rem;
   color: #cbd5f5;
+}
+
+.upload-cancel {
+  color: #f8fafc;
 }
 
 .upload-progress {

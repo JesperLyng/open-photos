@@ -3,9 +3,11 @@ export function uploadWithProgress(
   contentType: string,
   file: File,
   onProgress: (value: number) => void,
+  onXhr?: (xhr: XMLHttpRequest) => void,
 ) {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    onXhr?.(xhr);
     xhr.open("PUT", url);
     xhr.setRequestHeader("Content-Type", contentType);
 

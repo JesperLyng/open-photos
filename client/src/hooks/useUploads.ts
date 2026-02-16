@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { uploadWithProgress } from "../lib/upload";
 import type { UploadItem, UploadStatus } from "../types/media";
@@ -10,9 +10,24 @@ type UseUploadsParams = {
   refreshLibrary: () => Promise<void>;
 };
 
+const ACTIVE_UPLOAD_STATUSES: UploadStatus[] = [
+  "queued",
+  "hashing",
+  "init",
+  "ready",
+  "uploading",
+  "finalizing",
+];
+
+function isActiveUploadStatus(status: UploadStatus) {
+  return ACTIVE_UPLOAD_STATUSES.includes(status);
+}
+
 export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [uploadPanelOpen, setUploadPanelOpen] = useState(true);
+  const cancelledIdsRef = useRef<Set<string>>(new Set());
+  const activeXhrRef = useRef<Map<string, XMLHttpRequest>>(new Map());
 
   const computeSHA256 = useCallback(async (file: File) => {
     const buffer = await file.arrayBuffer();
@@ -23,6 +38,11 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
 
   const addUploads = useCallback((files: File[]) => {
     const tasks = files.map((file) => ({ id: crypto.randomUUID(), file }));
+    for (const task of tasks) {
+      cancelledIdsRef.current.delete(task.id);
+      activeXhrRef.current.delete(task.id);
+    }
+
     setUploads((prev) => [
       ...tasks.map((task) => ({
         id: task.id,
@@ -39,6 +59,44 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
     setUploads((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   }, []);
 
+  const handleCancelUpload = useCallback(
+    (id: string) => {
+      cancelledIdsRef.current.add(id);
+      const xhr = activeXhrRef.current.get(id);
+      if (xhr) {
+        xhr.abort();
+        activeXhrRef.current.delete(id);
+      }
+      updateUpload(id, {
+        status: "cancelled",
+        error: undefined,
+      });
+    },
+    [updateUpload],
+  );
+
+  const handleCancelAll = useCallback(() => {
+    for (const [id, xhr] of activeXhrRef.current) {
+      cancelledIdsRef.current.add(id);
+      xhr.abort();
+    }
+    activeXhrRef.current.clear();
+
+    setUploads((prev) =>
+      prev.map((item) => {
+        if (!isActiveUploadStatus(item.status)) {
+          return item;
+        }
+        cancelledIdsRef.current.add(item.id);
+        return {
+          ...item,
+          status: "cancelled",
+          error: undefined,
+        };
+      }),
+    );
+  }, []);
+
   const handleUploadFiles = useCallback(
     async (files: File[]) => {
       if (files.length === 0 || auth.status !== "authenticated") return;
@@ -46,7 +104,6 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
       const token = auth.user?.access_token;
       const uploadConcurrency = 4;
 
-      // Prepared items ready for upload, plus a way to wait for more
       type PreparedTask = {
         id: string;
         file: File;
@@ -58,27 +115,42 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
         filename: string;
         checksum: string;
       };
+
       const ready: PreparedTask[] = [];
       let prepDone = false;
-      const waiters: (() => void)[] = [];
+      const waiters: Array<() => void> = [];
+      const isCancelled = (id: string) => cancelledIdsRef.current.has(id);
 
       function waitForReady(): Promise<void> {
         if (ready.length > 0 || prepDone) return Promise.resolve();
-        return new Promise((resolve) => { waiters.push(resolve); });
+        return new Promise((resolve) => {
+          waiters.push(resolve);
+        });
       }
 
       function wakeWaiters() {
-        while (waiters.length > 0) waiters.shift()!();
+        const current = waiters.splice(0, waiters.length);
+        for (const resolve of current) {
+          resolve();
+        }
       }
 
-      // --- Prepare worker: hash + init, feeds the ready queue ---
       const prepareAll = async () => {
         for (const task of tasks) {
+          if (isCancelled(task.id)) {
+            updateUpload(task.id, { status: "cancelled", error: undefined });
+            continue;
+          }
+
           try {
             updateUpload(task.id, { status: "hashing" });
             const checksum = await computeSHA256(task.file);
-            updateUpload(task.id, { status: "init" });
+            if (isCancelled(task.id)) {
+              updateUpload(task.id, { status: "cancelled", error: undefined });
+              continue;
+            }
 
+            updateUpload(task.id, { status: "init" });
             const initRes = await fetch(`${apiOrigin}/api/uploads/init`, {
               method: "POST",
               headers: {
@@ -94,11 +166,19 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
             });
 
             if (!initRes.ok) {
-              updateUpload(task.id, { status: "error", error: `Init failed (${initRes.status})` });
+              updateUpload(task.id, {
+                status: "error",
+                error: `Init failed (${initRes.status})`,
+              });
               continue;
             }
 
             const initData = await initRes.json();
+            if (isCancelled(task.id)) {
+              updateUpload(task.id, { status: "cancelled", error: undefined });
+              continue;
+            }
+
             if (initData.duplicate) {
               updateUpload(task.id, { status: "duplicate", progress: 100 });
               continue;
@@ -118,20 +198,29 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
             });
             wakeWaiters();
           } catch (error) {
-            updateUpload(task.id, { status: "error", error: (error as Error).message });
+            if (isCancelled(task.id)) {
+              updateUpload(task.id, { status: "cancelled", error: undefined });
+            } else {
+              updateUpload(task.id, { status: "error", error: (error as Error).message });
+            }
           }
         }
+
         prepDone = true;
         wakeWaiters();
       };
 
-      // --- Upload worker: takes prepared items and uploads to S3 ---
       const uploadWorker = async () => {
         while (true) {
           await waitForReady();
           const item = ready.shift();
           if (!item) {
             if (prepDone) return;
+            continue;
+          }
+
+          if (isCancelled(item.id)) {
+            updateUpload(item.id, { status: "cancelled", error: undefined });
             continue;
           }
 
@@ -142,7 +231,16 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
               item.contentType,
               item.file,
               (progress) => updateUpload(item.id, { progress }),
+              (xhr) => {
+                activeXhrRef.current.set(item.id, xhr);
+              },
             );
+            activeXhrRef.current.delete(item.id);
+
+            if (isCancelled(item.id)) {
+              updateUpload(item.id, { status: "cancelled", error: undefined });
+              continue;
+            }
 
             updateUpload(item.id, { status: "finalizing" });
             const completeRes = await fetch(`${apiOrigin}/api/uploads/complete`, {
@@ -162,31 +260,42 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
             });
 
             if (!completeRes.ok) {
-              updateUpload(item.id, { status: "error", error: `Complete failed (${completeRes.status})` });
+              updateUpload(item.id, {
+                status: "error",
+                error: `Complete failed (${completeRes.status})`,
+              });
+              continue;
+            }
+
+            if (isCancelled(item.id)) {
+              updateUpload(item.id, { status: "cancelled", error: undefined });
               continue;
             }
 
             updateUpload(item.id, { status: "done", progress: 100 });
-            refreshLibrary();
+            void refreshLibrary();
           } catch (error) {
-            updateUpload(item.id, { status: "error", error: (error as Error).message });
+            activeXhrRef.current.delete(item.id);
+            if (isCancelled(item.id)) {
+              updateUpload(item.id, { status: "cancelled", error: undefined });
+            } else {
+              updateUpload(item.id, { status: "error", error: (error as Error).message });
+            }
           }
         }
       };
 
-      // Run prepare worker + upload workers in parallel
       await Promise.all([
         prepareAll(),
         ...Array.from({ length: uploadConcurrency }, () => uploadWorker()),
       ]);
       await refreshLibrary();
-      // Server-side processing may still be running; poll until all items are ready
-      for (let i = 0; i < 10; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
+      for (let i = 0; i < 10; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
         await refreshLibrary();
       }
     },
-    [auth, addUploads, computeSHA256, updateUpload, refreshLibrary],
+    [auth, addUploads, computeSHA256, refreshLibrary, updateUpload],
   );
 
   const handleUploadInput = useCallback(
@@ -205,5 +314,7 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
     setUploadPanelOpen,
     handleUploadFiles,
     handleUploadInput,
+    handleCancelUpload,
+    handleCancelAll,
   };
 }
