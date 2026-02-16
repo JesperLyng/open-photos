@@ -188,6 +188,47 @@
   cursor: pointer;
 }
 
+.share-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.share-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.share-link {
+  border: 1px solid transparent;
+  background: rgba(15, 23, 42, 0.4);
+  color: #e2e8f0;
+  padding: 0.45rem 0.65rem;
+  border-radius: 10px;
+  text-decoration: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-link:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #e0f2fe;
+}
+
+.share-delete {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: transparent;
+  color: #e2e8f0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  padding: 0;
+  cursor: pointer;
+}
+
 .header {
   display: flex;
   align-items: center;

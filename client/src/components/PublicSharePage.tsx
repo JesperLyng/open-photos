@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { apiOrigin } from "../lib/api";
 import type { LibraryItem } from "../types/media";
 import "./PublicSharePage.css";
@@ -95,6 +96,33 @@ export function PublicSharePage() {
     ? originalSrc || previewSrc
     : previewSrc || originalSrc;
   const [displaySrc, setDisplaySrc] = useState<string | null>(fallbackSrc);
+
+  const orientation = detailItem?.metadata?.orientation;
+  const derivedWidth = detailItem?.derived?.small?.width;
+  const derivedHeight = detailItem?.derived?.small?.height;
+  const metaWidth = detailItem?.metadata?.width;
+  const metaHeight = detailItem?.metadata?.height;
+
+  let displayWidth = derivedWidth ?? metaWidth;
+  let displayHeight = derivedHeight ?? metaHeight;
+  if (
+    !derivedWidth &&
+    displayWidth &&
+    displayHeight &&
+    orientation &&
+    [5, 6, 7, 8].includes(orientation)
+  ) {
+    [displayWidth, displayHeight] = [displayHeight, displayWidth];
+  }
+
+  const aspectRatio =
+    displayWidth && displayHeight ? displayWidth / displayHeight : undefined;
+  const isPortrait =
+    displayWidth && displayHeight ? displayHeight > displayWidth : false;
+
+  const frameStyle: CSSProperties = {
+    ...(!isFullscreen && aspectRatio ? { aspectRatio } : {}),
+  };
 
   const rankSrc = useCallback(
     (src: string | null) => {
@@ -276,7 +304,10 @@ export function PublicSharePage() {
               </div>
             )}
             <div
-              className={`public-viewer-frame ${isFullscreen ? "fullscreen" : ""}`}
+              className={`public-viewer-frame ${isFullscreen ? "fullscreen" : ""} ${
+                isPortrait ? "portrait" : ""
+              }`}
+              style={frameStyle}
               onClick={() => setIsFullscreen((prev) => !prev)}
               role="button"
               tabIndex={0}

@@ -12,6 +12,7 @@ const shareLinkSchema = new Schema(
     },
     assetId: { type: Schema.Types.ObjectId, ref: "MediaAsset", index: true },
     albumId: { type: Schema.Types.ObjectId, ref: "Album", index: true },
+    token: { type: String, index: true },
     tokenHash: { type: String, required: true, unique: true, index: true },
   },
   { timestamps: true },
@@ -19,5 +20,6 @@ const shareLinkSchema = new Schema(
 
 shareLinkSchema.index({ tenantId: 1, type: 1, assetId: 1 });
 shareLinkSchema.index({ tenantId: 1, type: 1, albumId: 1 });
+shareLinkSchema.index({ token: 1 }, { unique: true, sparse: true });
 
 export const ShareLink = model("ShareLink", shareLinkSchema);

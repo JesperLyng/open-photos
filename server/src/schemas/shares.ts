@@ -32,3 +32,9 @@ export const publicShareAssetSchema = {
     include: z.string().optional(),
   }),
 };
+
+export const deleteShareSchema = {
+  params: z.object({
+    id: objectId,
+  }),
+};

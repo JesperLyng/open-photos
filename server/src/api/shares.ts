@@ -8,6 +8,7 @@ import { signDownload } from "../lib/storage.js";
 import {
   createAlbumShareSchema,
   createAssetShareSchema,
+  deleteShareSchema,
   publicShareAssetSchema,
   publicShareSchema,
 } from "../schemas/shares.js";
@@ -25,6 +26,15 @@ type ShareAsset = {
   metadata?: Record<string, unknown> | null;
   favorite?: boolean;
   tags?: string[] | null;
+};
+
+type ShareSummary = {
+  id: string;
+  type: "asset" | "album";
+  url: string | null;
+  targetId: string | null;
+  targetLabel: string;
+  createdAt: Date | string | null;
 };
 
 function hashToken(token: string) {
@@ -118,6 +128,7 @@ async function issueShareToken(payload: {
         type: payload.type,
         assetId: payload.assetId,
         albumId: payload.albumId,
+        token,
         tokenHash,
       });
       return token;
@@ -138,6 +149,87 @@ async function issueShareToken(payload: {
 }
 
 export function registerShareRoutes(app) {
+  app.get(
+    "/api/shares",
+    {
+      preHandler: [app.requireAuth],
+    },
+    async (request) => {
+      const shares = await ShareLink.find(
+        buildTenantFilter(request.user.tenantId, request.user.id),
+      )
+        .sort({ createdAt: -1, _id: -1 })
+        .limit(500)
+        .lean();
+
+      const assetIds = shares
+        .filter((share) => share.type === "asset" && share.assetId)
+        .map((share) => share.assetId);
+      const albumIds = shares
+        .filter((share) => share.type === "album" && share.albumId)
+        .map((share) => share.albumId);
+
+      const [assets, albums] = await Promise.all([
+        assetIds.length
+          ? MediaAsset.find({
+              _id: { $in: assetIds },
+              ...buildTenantFilter(request.user.tenantId, request.user.id),
+            })
+              .select({ filename: 1 })
+              .lean()
+          : [],
+        albumIds.length
+          ? Album.find({
+              _id: { $in: albumIds },
+              tenantId: request.user.tenantId,
+            })
+              .select({ name: 1 })
+              .lean()
+          : [],
+      ]);
+
+      const assetNames = new Map<string, string>();
+      for (const asset of assets) {
+        if (typeof asset.filename === "string" && asset.filename.trim()) {
+          assetNames.set(String(asset._id), asset.filename);
+        }
+      }
+
+      const albumNames = new Map<string, string>();
+      for (const album of albums) {
+        if (typeof album.name === "string" && album.name.trim()) {
+          albumNames.set(String(album._id), album.name);
+        }
+      }
+
+      const items: ShareSummary[] = shares.map((share) => {
+        const targetId =
+          share.type === "asset"
+            ? share.assetId
+              ? String(share.assetId)
+              : null
+            : share.albumId
+              ? String(share.albumId)
+              : null;
+        const targetLabel =
+          share.type === "asset"
+            ? assetNames.get(String(share.assetId)) || "Shared photo"
+            : albumNames.get(String(share.albumId)) || "Shared album";
+
+        return {
+          id: String(share._id),
+          type: share.type,
+          url: share.token ? createShareUrl(share.token) : null,
+          targetId,
+          targetLabel,
+          createdAt: share.createdAt || null,
+        };
+      });
+
+      return { items };
+    },
+  );
+
   app.post(
     "/api/shares/assets/:id",
     {
@@ -204,6 +296,27 @@ export function registerShareRoutes(app) {
     },
   );
 
+  app.delete(
+    "/api/shares/:id",
+    {
+      preHandler: [app.requireAuth],
+      schema: deleteShareSchema,
+    },
+    async (request) => {
+      const { id } = request.params;
+      const result = await ShareLink.deleteOne({
+        _id: id,
+        ...buildTenantFilter(request.user.tenantId, request.user.id),
+      });
+
+      if (!result.deletedCount) {
+        throw app.httpErrors.notFound("share not found");
+      }
+
+      return { ok: true };
+    },
+  );
+
   app.get(
     "/api/public/shares/:token",
     {
@@ -212,7 +325,9 @@ export function registerShareRoutes(app) {
     async (request) => {
       const { token } = request.params;
       const tokenHash = hashToken(token);
-      const share = await ShareLink.findOne({ tokenHash }).lean();
+      const share = await ShareLink.findOne({
+        $or: [{ tokenHash }, { token }],
+      }).lean();
       if (!share) {
         throw app.httpErrors.notFound("share not found");
       }
@@ -308,7 +423,9 @@ export function registerShareRoutes(app) {
     async (request) => {
       const { token, assetId } = request.params;
       const tokenHash = hashToken(token);
-      const share = await ShareLink.findOne({ tokenHash }).lean();
+      const share = await ShareLink.findOne({
+        $or: [{ tokenHash }, { token }],
+      }).lean();
       if (!share) {
         throw app.httpErrors.notFound("share not found");
       }

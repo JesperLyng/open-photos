@@ -20,4 +20,5 @@ export {
   createAlbumShareSchema,
   publicShareSchema,
   publicShareAssetSchema,
+  deleteShareSchema,
 } from "./shares.js";

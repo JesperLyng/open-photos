@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createAlbumShareSchema,
   createAssetShareSchema,
+  deleteShareSchema,
   publicShareAssetSchema,
   publicShareSchema,
 } from "../../schemas/shares.js";
@@ -59,5 +60,17 @@ describe("publicShareAssetSchema", () => {
   it("accepts empty query", () => {
     const query = publicShareAssetSchema.querystring.safeParse({});
     expect(query.success).toBe(true);
+  });
+});
+
+describe("deleteShareSchema", () => {
+  it("accepts valid id", () => {
+    const result = deleteShareSchema.params.safeParse({ id: validObjectId });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects invalid id", () => {
+    const result = deleteShareSchema.params.safeParse({ id: "invalid" });
+    expect(result.success).toBe(false);
   });
 });

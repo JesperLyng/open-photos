@@ -13,6 +13,7 @@ import {useUploads} from "./hooks/useUploads";
 import {useViewer} from "./hooks/useViewer";
 import {normalizeTag, normalizeTagKey} from "./lib/tags";
 import type {Album} from "./types/album";
+import type {ShareItem} from "./types/share";
 import {apiOrigin} from "./lib/api";
 import "./App.css";
 
@@ -34,6 +35,8 @@ function App() {
   const [albumsStatus, setAlbumsStatus] = useState("idle");
   const [newAlbumName, setNewAlbumName] = useState("");
   const [albumPickerOpen, setAlbumPickerOpen] = useState(false);
+  const [shares, setShares] = useState<ShareItem[]>([]);
+  const [sharesStatus, setSharesStatus] = useState("idle");
   const [tagSuggestions, setTagSuggestions] = useState<
     { key: string; label: string; count?: number }[]
   >([]);
@@ -177,6 +180,37 @@ function App() {
   useEffect(() => {
     void refreshAlbums();
   }, [refreshAlbums]);
+
+  const refreshShares = useCallback(async () => {
+    if (auth.status !== "authenticated") {
+      setShares([]);
+      setSharesStatus("idle");
+      return;
+    }
+    try {
+      setSharesStatus("loading");
+      const res = await fetch(`${apiOrigin}/api/shares`, {
+        headers: {
+          Authorization: `Bearer ${auth.user?.access_token}`,
+        },
+      });
+      if (!res.ok) {
+        console.error("Failed to load shares");
+        setSharesStatus("error");
+        return;
+      }
+      const data = await res.json();
+      setShares(Array.isArray(data.items) ? data.items : []);
+      setSharesStatus("ok");
+    } catch (error) {
+      console.error(error);
+      setSharesStatus("error");
+    }
+  }, [auth.status, auth.user?.access_token]);
+
+  useEffect(() => {
+    void refreshShares();
+  }, [refreshShares]);
 
   const createAlbum = useCallback(async () => {
     if (auth.status !== "authenticated") return;
@@ -415,12 +449,13 @@ function App() {
         const data = await res.json();
         if (typeof data?.url === "string" && data.url) {
           await presentShareLink(data.url);
+          await refreshShares();
         }
       } catch (error) {
         console.error(error);
       }
     },
-    [auth.status, auth.user?.access_token, presentShareLink],
+    [auth.status, auth.user?.access_token, presentShareLink, refreshShares],
   );
 
   const shareAlbum = useCallback(
@@ -440,12 +475,35 @@ function App() {
         const data = await res.json();
         if (typeof data?.url === "string" && data.url) {
           await presentShareLink(data.url);
+          await refreshShares();
         }
       } catch (error) {
         console.error(error);
       }
     },
-    [auth.status, auth.user?.access_token, presentShareLink],
+    [auth.status, auth.user?.access_token, presentShareLink, refreshShares],
+  );
+
+  const deleteShare = useCallback(
+    async (shareId: string) => {
+      if (auth.status !== "authenticated") return;
+      try {
+        const res = await fetch(`${apiOrigin}/api/shares/${shareId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${auth.user?.access_token}`,
+          },
+        });
+        if (!res.ok) {
+          console.error("Failed to delete share");
+          return;
+        }
+        setShares((prev) => prev.filter((item) => item.id !== shareId));
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [auth.status, auth.user?.access_token],
   );
 
   useEffect(() => {
@@ -699,6 +757,46 @@ function App() {
                 </button>
               </div>
             )}
+          </div>
+          <div className="sidebar-section">
+            <div className="sidebar-section-title">Shares</div>
+            {sharesStatus === "loading" && <div className="sidebar-muted">Loading...</div>}
+            {sharesStatus === "error" && <div className="sidebar-muted">Failed to load.</div>}
+            <div className="share-list">
+              {shares.map((share) => (
+                <div key={share.id} className="share-item">
+                  <a
+                    className="share-link"
+                    href={share.url || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={share.url || "Legacy share without URL"}
+                    onClick={(event) => {
+                      if (!share.url) {
+                        event.preventDefault();
+                      }
+                    }}
+                  >
+                    {sidebarCollapsed
+                      ? (share.type === "album" ? "A" : "P")
+                      : `${share.type === "album" ? "Album" : "Photo"}: ${share.targetLabel}`}
+                  </a>
+                  {!sidebarCollapsed && (
+                    <button
+                      className="share-delete"
+                      onClick={() => void deleteShare(share.id)}
+                      aria-label="Delete share link"
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              {sharesStatus === "ok" && shares.length === 0 && (
+                <div className="sidebar-muted">No shared links.</div>
+              )}
+            </div>
           </div>
         </aside>
         <main className="content">
