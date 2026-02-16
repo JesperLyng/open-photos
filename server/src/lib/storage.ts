@@ -10,6 +10,8 @@ const s3 = new S3Client({
     secretAccessKey: config.s3SecretAccessKey,
   },
   forcePathStyle: true,
+  requestChecksumCalculation: "WHEN_REQUIRED",
+  responseChecksumValidation: "WHEN_REQUIRED",
 });
 
 export async function signUpload({ key, contentType }) {
