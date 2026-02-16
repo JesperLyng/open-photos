@@ -9,7 +9,6 @@ import type {
   CSSProperties,
 } from "react";
 import type { DateGroup, LibraryItem } from "../types/media";
-import { getOrientationTransform } from "../lib/layout";
 
 type LibraryState = {
   status: string;
@@ -200,10 +199,6 @@ export const LibraryGrid = memo(function LibraryGrid({
                       {row.tiles.map((tile) => {
                         const globalIndex = indexById.get(tile.item.id);
                         if (globalIndex === undefined) return null;
-                        const transform = getOrientationTransform(tile.item.metadata?.orientation);
-                        const imgStyle = transform
-                          ? ({ "--img-transform": transform } as CSSProperties)
-                          : undefined;
                         return (
                           <button
                             key={tile.item.id}
@@ -219,7 +214,6 @@ export const LibraryGrid = memo(function LibraryGrid({
                                 className="photo-img"
                                 src={tile.item.thumbUrl}
                                 alt={tile.item.filename || "asset"}
-                                style={imgStyle}
                                 loading="lazy"
                                 decoding="async"
                                 fetchPriority="low"

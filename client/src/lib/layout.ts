@@ -30,27 +30,6 @@ function getDisplayRatio(item: LibraryItem) {
   return ratio;
 }
 
-export function getOrientationTransform(orientation?: number) {
-  switch (orientation) {
-    case 2:
-      return "scaleX(-1)";
-    case 3:
-      return "rotate(180deg)";
-    case 4:
-      return "scaleY(-1)";
-    case 5:
-      return "rotate(90deg) scaleX(-1)";
-    case 6:
-      return "rotate(90deg)";
-    case 7:
-      return "rotate(270deg) scaleX(-1)";
-    case 8:
-      return "rotate(270deg)";
-    default:
-      return "";
-  }
-}
-
 export function buildRows(items: LibraryItem[], containerWidth: number): LayoutRow[] {
   const width = containerWidth || 1200;
   const gap = 6;

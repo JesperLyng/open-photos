@@ -7,7 +7,6 @@ import type {
   KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { displayText, formatAperture, formatDate, formatExposure, formatFocalLength, formatIso, readExif } from "../lib/exif";
-import { getOrientationTransform } from "../lib/layout";
 import type { LibraryItem } from "../types/media";
 
 type ViewerProps = {
@@ -100,7 +99,6 @@ export function Viewer({
     };
   }, [targetSrc, thumbSrc, previewSrc, originalSrc]);
   const orientation = imageItem?.metadata?.orientation;
-  const transform = getOrientationTransform(orientation);
 
   const derivedWidth = imageItem?.derived?.small?.width;
   const derivedHeight = imageItem?.derived?.small?.height;
@@ -125,7 +123,6 @@ export function Viewer({
     displayWidth && displayHeight ? displayHeight > displayWidth : false;
 
   const frameStyle: CSSProperties = {
-    ...(transform ? ({ "--img-transform": transform } as CSSProperties) : {}),
     ...(!isFullscreen && aspectRatio ? { aspectRatio } : {}),
   };
 

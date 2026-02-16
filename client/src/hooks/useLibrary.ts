@@ -75,7 +75,7 @@ export function useLibrary({ auth, gridWidth, filter }: UseLibraryParams) {
       }
 
       const res = await fetch(
-        `/api/assets/${assetId}${query.toString() ? `?${query.toString()}` : ""}`,
+        `${apiOrigin}/api/assets/${assetId}${query.toString() ? `?${query.toString()}` : ""}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

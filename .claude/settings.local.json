@@ -15,7 +15,9 @@
       "Bash(powershell -ExecutionPolicy Bypass -File infra/deploy-scaleway.ps1 -EnvFile server/.prod.env -SkipBuild)",
       "Bash(npm --workspace client run build)",
       "Bash(aws:*)",
-      "Bash(node scripts/run-with-env.mjs:*)"
+      "Bash(node scripts/run-with-env.mjs:*)",
+      "Bash(xargs ls:*)",
+      "Bash(powershell -File:*)"
     ]
   }
 }
