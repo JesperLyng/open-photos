@@ -138,6 +138,15 @@ function App() {
     ? "Remove favorites"
     : "Mark as favorite";
 
+  const presentShareLink = useCallback(async (url: string) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+      window.alert("Share link copied.");
+      return;
+    }
+    window.prompt("Copy share link", url);
+  }, []);
+
   const refreshAlbums = useCallback(async () => {
     if (auth.status !== "authenticated") {
       setAlbums([]);
@@ -389,6 +398,56 @@ function App() {
     await refreshLibrary();
   }, [auth, clearSelection, refreshLibrary, selection]);
 
+  const shareAsset = useCallback(
+    async (assetId: string) => {
+      if (auth.status !== "authenticated") return;
+      try {
+        const res = await fetch(`${apiOrigin}/api/shares/assets/${assetId}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${auth.user?.access_token}`,
+          },
+        });
+        if (!res.ok) {
+          console.error("Failed to create asset share link");
+          return;
+        }
+        const data = await res.json();
+        if (typeof data?.url === "string" && data.url) {
+          await presentShareLink(data.url);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [auth.status, auth.user?.access_token, presentShareLink],
+  );
+
+  const shareAlbum = useCallback(
+    async (albumId: string) => {
+      if (auth.status !== "authenticated") return;
+      try {
+        const res = await fetch(`${apiOrigin}/api/shares/albums/${albumId}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${auth.user?.access_token}`,
+          },
+        });
+        if (!res.ok) {
+          console.error("Failed to create album share link");
+          return;
+        }
+        const data = await res.json();
+        if (typeof data?.url === "string" && data.url) {
+          await presentShareLink(data.url);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [auth.status, auth.user?.access_token, presentShareLink],
+  );
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -598,14 +657,25 @@ function App() {
                       {label}
                     </button>
                     {!sidebarCollapsed && (
-                      <button
-                        className="album-delete"
-                        onClick={() => deleteAlbum(album.id)}
-                        aria-label={`Delete ${album.name}`}
-                        type="button"
-                      >
-                        ×
-                      </button>
+                      <>
+                        <button
+                          className="album-share"
+                          onClick={() => void shareAlbum(album.id)}
+                          aria-label={`Share ${album.name}`}
+                          title={`Share ${album.name}`}
+                          type="button"
+                        >
+                          ↗
+                        </button>
+                        <button
+                          className="album-delete"
+                          onClick={() => deleteAlbum(album.id)}
+                          aria-label={`Delete ${album.name}`}
+                          type="button"
+                        >
+                          ×
+                        </button>
+                      </>
                     )}
                   </div>
                 );
@@ -863,6 +933,11 @@ function App() {
             const target = detailItem || currentItem;
             if (!target) return;
             void updateFavorite(target.id, !target.favorite);
+          }}
+          onShare={() => {
+            const target = detailItem || currentItem;
+            if (!target) return;
+            void shareAsset(target.id);
           }}
         />
       )}

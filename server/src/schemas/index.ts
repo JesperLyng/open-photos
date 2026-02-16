@@ -15,3 +15,9 @@ export {
   albumItemsSchema,
 } from "./albums.js";
 export { tagsQuerySchema } from "./tags.js";
+export {
+  createAssetShareSchema,
+  createAlbumShareSchema,
+  publicShareSchema,
+  publicShareAssetSchema,
+} from "./shares.js";

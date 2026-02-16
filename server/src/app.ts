@@ -17,6 +17,7 @@ import { registerLibraryRoutes } from "./api/library.js";
 import { registerAssetRoutes } from "./api/assets.js";
 import { registerTagRoutes } from "./api/tags.js";
 import { registerAlbumRoutes } from "./api/albums.js";
+import { registerShareRoutes } from "./api/shares.js";
 import { registerRealtime } from "./lib/realtime.js";
 import { corsConfig, helmetConfig } from "./lib/security.js";
 import { config } from "./lib/config.js";
@@ -44,6 +45,7 @@ export function buildServer() {
   registerAssetRoutes(app);
   registerTagRoutes(app);
   registerAlbumRoutes(app);
+  registerShareRoutes(app);
   registerRealtime(app);
   setErrorHandlers(app);
 

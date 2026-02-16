@@ -5,6 +5,13 @@ dotenv.config({
   override: false,
 });
 
+const allowedOriginsValue = process.env.ALLOWED_ORIGINS || "http://localhost:5173";
+const firstAllowedOrigin =
+  allowedOriginsValue
+    .split(",")
+    .map((value) => value.trim())
+    .find(Boolean) || "http://localhost:5173";
+
 export const config = {
   env: process.env.NODE_ENV || "development",
   host: process.env.HOST || "0.0.0.0",
@@ -24,7 +31,8 @@ export const config = {
   s3Bucket: process.env.S3_BUCKET || "",
   s3AccessKeyId: process.env.S3_ACCESS_KEY_ID || "",
   s3SecretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "",
-  allowedOrigins: process.env.ALLOWED_ORIGINS || "http://localhost:5173",
+  allowedOrigins: allowedOriginsValue,
+  publicAppOrigin: process.env.PUBLIC_APP_ORIGIN || firstAllowedOrigin,
   rateLimitEnabled: process.env.RATE_LIMIT_ENABLED !== "false",
   redisHost: process.env.REDIS_HOST || "",
   redisPort: Number(process.env.REDIS_PORT || 6379),

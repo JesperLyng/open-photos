@@ -26,6 +26,7 @@ type ViewerProps = {
   onTagRemove: (tag: string) => void;
   isFavorite: boolean;
   onToggleFavorite: () => void;
+  onShare: () => void;
 };
 
 export function Viewer({
@@ -45,6 +46,7 @@ export function Viewer({
   onTagRemove,
   isFavorite,
   onToggleFavorite,
+  onShare,
 }: ViewerProps) {
   const imageItem = detailItem || currentItem;
   const thumbSrc = imageItem?.thumbUrl || null;
@@ -157,6 +159,9 @@ export function Viewer({
               </div>
             </div>
             <div className="viewer-actions-inline">
+              <button className="viewer-close" onClick={onShare} type="button">
+                Share
+              </button>
               <button className="viewer-close" onClick={onClose}>
                 Close
               </button>
