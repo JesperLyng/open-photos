@@ -17,7 +17,8 @@
       "Bash(aws:*)",
       "Bash(node scripts/run-with-env.mjs:*)",
       "Bash(xargs ls:*)",
-      "Bash(powershell -File:*)"
+      "Bash(powershell -File:*)",
+      "WebSearch"
     ]
   }
 }

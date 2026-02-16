@@ -8,24 +8,19 @@ export async function findOrCreateUserFromClaims(claims) {
   const avatarUrl = claims.picture || "";
   const emailVerified = Boolean(claims.email_verified);
 
-  let user = await User.findOne({ oidcSubject });
-  if (!user) {
-    user = await User.create({
-      oidcSubject,
-      email,
-      displayName,
-      avatarUrl,
-      emailVerified,
-      lastLoginAt: new Date(),
-    });
-  } else {
-    user.lastLoginAt = new Date();
-    if (email && user.email !== email) user.email = email;
-    user.emailVerified = emailVerified;
-    if (displayName) user.displayName = displayName;
-    if (avatarUrl) user.avatarUrl = avatarUrl;
-    await user.save();
-  }
+  const update: Record<string, unknown> = {
+    lastLoginAt: new Date(),
+    emailVerified,
+  };
+  if (email) update.email = email;
+  if (displayName) update.displayName = displayName;
+  if (avatarUrl) update.avatarUrl = avatarUrl;
+
+  const user = await User.findOneAndUpdate(
+    { oidcSubject },
+    { $set: update, $setOnInsert: { oidcSubject } },
+    { upsert: true, new: true },
+  );
 
   return user;
 }

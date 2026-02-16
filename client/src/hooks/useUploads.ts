@@ -43,7 +43,7 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
     async (files: File[]) => {
       if (files.length === 0 || auth.status !== "authenticated") return;
       const tasks = addUploads(files);
-      const token = auth.user.access_token;
+      const token = auth.user?.access_token;
       const uploadConcurrency = 4;
 
       // Prepared items ready for upload, plus a way to wait for more

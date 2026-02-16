@@ -13,6 +13,7 @@ export async function authenticateToken(token) {
   const { payload } = await jwtVerify(token, jwks, {
     issuer: config.oidcIssuer,
     audience: config.oidcAudience,
+    clockTolerance: 5,
   });
 
   let claims = { ...payload };
