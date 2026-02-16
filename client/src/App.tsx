@@ -488,7 +488,22 @@ function App() {
   }, [auth.status, auth.user?.access_token, filterOpen]);
 
   return (
-    <div className="page">
+    <div
+      className={`page ${isDragging ? "dragging" : ""}`}
+      onDragOver={(event) => event.preventDefault()}
+      onDragEnter={() => setIsDragging(true)}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+        setIsDragging(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setIsDragging(false);
+        const files = event.dataTransfer?.files;
+        if (!files || files.length === 0) return;
+        void handleUploadFiles(Array.from(files));
+      }}
+    >
       <Header
         auth={auth}
         menuOpen={menuOpen}
@@ -812,9 +827,6 @@ function App() {
             importingItems={importingItems}
             isImporting={isImporting}
             dateGroups={dateGroups}
-            isDragging={isDragging}
-            setIsDragging={setIsDragging}
-            handleUploadFiles={handleUploadFiles}
             indexById={indexById}
             toggleSelect={toggleSelect}
           />

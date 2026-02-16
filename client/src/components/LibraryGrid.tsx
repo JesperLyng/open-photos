@@ -39,9 +39,6 @@ type LibraryGridProps = {
   importingItems: LibraryItem[];
   isImporting: boolean;
   dateGroups: DateGroup[];
-  isDragging: boolean;
-  setIsDragging: Dispatch<SetStateAction<boolean>>;
-  handleUploadFiles: (files: File[]) => void;
   indexById: Map<string, number>;
   toggleSelect: (index: number, event: MouseEvent) => void;
 };
@@ -69,9 +66,6 @@ export const LibraryGrid = memo(function LibraryGrid({
   importingItems,
   isImporting,
   dateGroups,
-  isDragging,
-  setIsDragging,
-  handleUploadFiles,
   indexById,
   toggleSelect,
 }: LibraryGridProps) {
@@ -198,19 +192,7 @@ export const LibraryGrid = memo(function LibraryGrid({
           {dateGroups.map((group, groupIndex) => (
             <div key={`${group.key}-${groupIndex}`} className="year-group">
               <div className="year-header">{group.label}</div>
-              <div
-                className={`grid-frame ${isDragging ? "dragging" : ""}`}
-                onDragOver={(event) => event.preventDefault()}
-                onDragEnter={() => setIsDragging(true)}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  setIsDragging(false);
-                  const files = event.dataTransfer?.files;
-                  if (!files || files.length === 0) return;
-                  void handleUploadFiles(Array.from(files));
-                }}
-              >
+              <div className="grid-frame">
                 <div className="photo-grid">
                   {group.rows.map((row, rowIndex) => (
                     <div

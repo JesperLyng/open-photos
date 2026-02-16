@@ -10,6 +10,13 @@
   flex-direction: column;
   gap: 1.5rem;
   width: 100%;
+  min-height: 100vh;
+}
+
+.page.dragging {
+  outline: 3px dashed #6366f1;
+  outline-offset: -3px;
+  background: rgba(99, 102, 241, 0.04);
 }
 
 .main-layout {
@@ -463,22 +470,6 @@ pre {
   height: 100%;
 }
 
-.grid-frame::after {
-  content: "Drop files to upload";
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #94a3b8;
-  font-size: 0.95rem;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-.grid-frame.dragging::after {
-  opacity: 1;
-}
 
 .selection-bar {
   display: flex;
