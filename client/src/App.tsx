@@ -45,6 +45,7 @@ function App() {
   const {
     library,
     gridItems,
+    importingItems,
     dateGroups,
     displayItems,
     indexById,
@@ -421,6 +422,9 @@ function App() {
   }, [menuOpen]);
 
   const showUploadPanel = uploads.length > 0;
+  const isImporting = uploads.some((u) =>
+    ["queued", "hashing", "init", "ready", "uploading", "finalizing"].includes(u.status),
+  ) || importingItems.length > 0;
   const filterActive = Boolean(activeFilter.from || activeFilter.to || activeFilter.tags.trim());
   const tagSuggestionQuery = normalizeTagKey(filterTagDraft);
   const selectedTagKeys = new Set(filterDraft.tags.map((tag) => normalizeTagKey(tag)));
@@ -805,6 +809,8 @@ function App() {
             showRemoveFromAlbum={Boolean(activeFilter.albumId)}
             removeAlbumLabel="Remove from album"
             onRemoveFromAlbum={removeSelectionFromAlbum}
+            importingItems={importingItems}
+            isImporting={isImporting}
             dateGroups={dateGroups}
             isDragging={isDragging}
             setIsDragging={setIsDragging}

@@ -171,16 +171,21 @@ export function useLibrary({ auth, gridWidth, filter }: UseLibraryParams) {
     };
   }, [auth, apiOrigin, fetchAsset]);
 
-  const gridItems = useMemo(() => {
+  const { gridItems, importingItems } = useMemo(() => {
     const seen = new Set<string>();
-    const unique: LibraryItem[] = [];
+    const ready: LibraryItem[] = [];
+    const importing: LibraryItem[] = [];
     for (const item of library.items) {
       if (!item?.id) continue;
       if (seen.has(item.id)) continue;
       seen.add(item.id);
-      unique.push(item);
+      if (item.status === "ready") {
+        ready.push(item);
+      } else {
+        importing.push(item);
+      }
     }
-    return unique;
+    return { gridItems: ready, importingItems: importing };
   }, [library.items]);
 
   const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
@@ -217,6 +222,11 @@ export function useLibrary({ auth, gridWidth, filter }: UseLibraryParams) {
   const displayItems = useMemo(() => {
     const seen = new Set<string>();
     const ordered: LibraryItem[] = [];
+    for (const item of importingItems) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      ordered.push(item);
+    }
     for (const group of dateGroups) {
       for (const row of group.rows) {
         for (const tile of row.tiles) {
@@ -227,7 +237,7 @@ export function useLibrary({ auth, gridWidth, filter }: UseLibraryParams) {
       }
     }
     return ordered;
-  }, [dateGroups]);
+  }, [importingItems, dateGroups]);
 
   const indexById = useMemo(
     () => new Map(displayItems.map((item, index) => [item.id, index])),
@@ -263,6 +273,7 @@ export function useLibrary({ auth, gridWidth, filter }: UseLibraryParams) {
   return {
     library,
     gridItems,
+    importingItems,
     dateGroups,
     displayItems,
     indexById,

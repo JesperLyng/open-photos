@@ -36,6 +36,8 @@ type LibraryGridProps = {
   showRemoveFromAlbum: boolean;
   removeAlbumLabel: string;
   onRemoveFromAlbum: () => void;
+  importingItems: LibraryItem[];
+  isImporting: boolean;
   dateGroups: DateGroup[];
   isDragging: boolean;
   setIsDragging: Dispatch<SetStateAction<boolean>>;
@@ -64,6 +66,8 @@ export const LibraryGrid = memo(function LibraryGrid({
   showRemoveFromAlbum,
   removeAlbumLabel,
   onRemoveFromAlbum,
+  importingItems,
+  isImporting,
   dateGroups,
   isDragging,
   setIsDragging,
@@ -171,6 +175,24 @@ export const LibraryGrid = memo(function LibraryGrid({
         </div>
       )}
       {library.status === "ok" && library.items.length === 0 && <p>No assets yet.</p>}
+      {isImporting && (
+        <div className="year-groups">
+          <div className="year-group">
+            <div className="year-header">Importing</div>
+            <div className="importing-grid">
+              {importingItems.length > 0
+                ? importingItems.map((item) => (
+                    <div key={item.id} className="importing-tile">
+                      <div className="photo-img placeholder" />
+                      <div className="importing-label">{item.filename || "Processing..."}</div>
+                    </div>
+                  ))
+                : <div className="importing-empty">Waiting for processing...</div>
+              }
+            </div>
+          </div>
+        </div>
+      )}
       {library.status === "ok" && library.items.length > 0 && (
         <div className="year-groups">
           {dateGroups.map((group, groupIndex) => (
@@ -194,7 +216,11 @@ export const LibraryGrid = memo(function LibraryGrid({
                     <div
                       key={`${group.key}-${rowIndex}`}
                       className="photo-row"
-                      style={{ "--row-height": `${Math.round(row.height)}px` } as CSSProperties}
+                      style={
+                        {
+                          "--row-height": `${Math.max(155, Math.round(row.height))}px`,
+                        } as CSSProperties
+                      }
                     >
                       {row.tiles.map((tile) => {
                         const globalIndex = indexById.get(tile.item.id);

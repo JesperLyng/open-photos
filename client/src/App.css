@@ -206,6 +206,52 @@
   margin: 2.5rem 0 0.25rem;
 }
 
+.importing-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0.5rem 0;
+  min-height: 130px;
+  align-items: start;
+  align-content: start;
+}
+
+.importing-empty {
+  font-size: 0.8rem;
+  color: #64748b;
+  padding: 0.5rem 0;
+}
+
+.importing-tile {
+  width: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.importing-tile .photo-img.placeholder {
+  width: 100px;
+  height: 100px;
+  border-radius: 12px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.importing-label {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100px;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
 .year-group {
   display: grid;
   gap: 0.25rem;

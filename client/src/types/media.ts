@@ -23,6 +23,7 @@ export type UploadStatus =
   | "queued"
   | "hashing"
   | "init"
+  | "ready"
   | "uploading"
   | "finalizing"
   | "done"

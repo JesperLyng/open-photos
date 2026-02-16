@@ -59,6 +59,7 @@ export function UploadPanel({
                   {item.status === "queued" && "Queued"}
                   {item.status === "hashing" && "Hashing"}
                   {item.status === "init" && "Preparing"}
+                  {item.status === "ready" && "Ready"}
                   {item.status === "uploading" &&
                     `Uploading${item.progress ? ` ${item.progress}%` : ""}`}
                   {item.status === "finalizing" && "Finalizing"}
