@@ -210,6 +210,15 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
         wakeWaiters();
       };
 
+      let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+      const scheduleRefresh = () => {
+        if (refreshTimer) return;
+        refreshTimer = setTimeout(() => {
+          refreshTimer = null;
+          void refreshLibrary();
+        }, 1000);
+      };
+
       const uploadWorker = async () => {
         while (true) {
           await waitForReady();
@@ -275,7 +284,7 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
             }
 
             updateUpload(item.id, { status: "done", progress: 100, assetId: completeData.id });
-            void refreshLibrary();
+            scheduleRefresh();
           } catch (error) {
             activeXhrRef.current.delete(item.id);
             if (isCancelled(item.id)) {
@@ -291,11 +300,10 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
         prepareAll(),
         ...Array.from({ length: uploadConcurrency }, () => uploadWorker()),
       ]);
-      await refreshLibrary();
-      for (let i = 0; i < 10; i += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        await refreshLibrary();
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
       }
+      await refreshLibrary();
     },
     [auth, addUploads, computeSHA256, refreshLibrary, updateUpload],
   );
