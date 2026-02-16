@@ -89,11 +89,22 @@ Set in server env:
 
 ### CORS for browser direct upload
 
-Apply CORS on the upload bucket (via Scaleway S3 settings) to allow:
+The S3 bucket needs a CORS policy so the browser can upload files directly via presigned URLs.
 
-- Origins: your web app origin(s)
-- Methods: `PUT`, `GET`, `HEAD`
-- Headers: `Content-Type`, `Authorization`, `x-amz-*`
+Run the included script against your prod env:
+
+```powershell
+node scripts/run-with-env.mjs server/.prod.env node scripts/configure-s3-cors.mjs
+```
+
+This reads `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
+and `ALLOWED_ORIGINS` from the env file and applies a CORS rule allowing:
+
+- **Origins**: all values in `ALLOWED_ORIGINS` + `http://localhost:5173`
+- **Methods**: `PUT`, `GET`, `HEAD`
+- **Headers**: `*`
+
+Re-run this script whenever you change buckets or regions (e.g. switching from `fr-par` to `nl-ams`).
 
 ## 4) Build and Push Images
 

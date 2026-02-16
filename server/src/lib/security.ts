@@ -15,6 +15,7 @@ export const corsConfig = {
     .split(",")
     .map((o) => o.trim())
     .filter(Boolean),
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   credentials: true,
 };
 
