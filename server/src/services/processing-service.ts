@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import exifReader from "exif-reader";
 import {MediaAsset} from "../models/media-asset.js";
-import {getObjectBuffer, putObject} from "../lib/storage.js";
+import {deleteObject, getObjectBuffer, putObject} from "../lib/storage.js";
 import {notifyUser} from "../lib/realtime.js";
 import {validateFileType} from "../lib/file-validation.js";
 
@@ -29,8 +29,9 @@ export async function processMediaAsset(assetId, options: ProcessOptions = {}) {
             await validateFileType(originalBuffer, asset.original!.contentType ?? undefined);
         } catch (validationError) {
             console.error("file validation failed", {error: validationError, assetId: asset._id.toString()});
-            asset.status = "failed";
-            await asset.save();
+            notifyUser(asset.ownerId, {type: "asset_failed", assetId: asset._id.toString()});
+            await deleteObject({key: asset.original!.key});
+            await MediaAsset.findByIdAndDelete(asset._id);
             return;
         }
 
@@ -134,7 +135,12 @@ export async function processMediaAsset(assetId, options: ProcessOptions = {}) {
         notifyUser(asset.ownerId, {type: "asset_processed", assetId: asset._id.toString()});
     } catch (error) {
         console.error("processing failed", {error, assetId: asset._id.toString()});
-        asset.status = "failed";
-        await asset.save();
+        notifyUser(asset.ownerId, {type: "asset_failed", assetId: asset._id.toString()});
+        try {
+            if (asset.original?.key) await deleteObject({key: asset.original.key});
+            await MediaAsset.findByIdAndDelete(asset._id);
+        } catch (cleanupError) {
+            console.error("cleanup after failure failed", {error: cleanupError, assetId: asset._id.toString()});
+        }
     }
 }

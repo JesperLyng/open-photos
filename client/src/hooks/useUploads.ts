@@ -267,12 +267,14 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
               continue;
             }
 
+            const completeData = await completeRes.json();
+
             if (isCancelled(item.id)) {
               updateUpload(item.id, { status: "cancelled", error: undefined });
               continue;
             }
 
-            updateUpload(item.id, { status: "done", progress: 100 });
+            updateUpload(item.id, { status: "done", progress: 100, assetId: completeData.id });
             void refreshLibrary();
           } catch (error) {
             activeXhrRef.current.delete(item.id);
@@ -298,6 +300,16 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
     [auth, addUploads, computeSHA256, refreshLibrary, updateUpload],
   );
 
+  const markAssetFailed = useCallback((assetId: string) => {
+    setUploads((prev) =>
+      prev.map((item) =>
+        item.assetId === assetId
+          ? { ...item, status: "error" as UploadStatus, error: "Failed" }
+          : item,
+      ),
+    );
+  }, []);
+
   const handleUploadInput = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.target.files || []);
@@ -316,5 +328,6 @@ export function useUploads({ auth, refreshLibrary }: UseUploadsParams) {
     handleUploadInput,
     handleCancelUpload,
     handleCancelAll,
+    markAssetFailed,
   };
 }

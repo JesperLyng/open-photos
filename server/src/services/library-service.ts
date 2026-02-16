@@ -1,5 +1,6 @@
 import { MediaAsset } from "../models/media-asset.js";
 import { AlbumItem } from "../models/album-item.js";
+import { deleteObject } from "../lib/storage.js";
 
 function addTenantFilter(query: Record<string, any>, tenantId, ownerId) {
   const clause = { $or: [{ tenantId }, { tenantId: { $exists: false }, ownerId }] };
@@ -10,8 +11,24 @@ function addTenantFilter(query: Record<string, any>, tenantId, ownerId) {
   }
 }
 
+async function purgeFailedAssets(tenantId, ownerId) {
+  const failedQuery: Record<string, any> = { status: "failed" };
+  addTenantFilter(failedQuery, tenantId, ownerId);
+  const failed = await MediaAsset.find(failedQuery).select({ original: 1 }).lean();
+  if (failed.length === 0) return;
+  const ids = failed.map((a) => a._id);
+  await MediaAsset.deleteMany({ _id: { $in: ids } });
+  for (const asset of failed) {
+    if (asset.original?.key) {
+      deleteObject({ key: asset.original.key }).catch(() => {});
+    }
+  }
+}
+
 export async function listMediaAssets({ tenantId, ownerId, limit, cursor, filter }) {
-  const query: Record<string, any> = {};
+  void purgeFailedAssets(tenantId, ownerId);
+
+  const query: Record<string, any> = { status: { $ne: "failed" } };
   addTenantFilter(query, tenantId, ownerId);
   if (cursor) {
     query._id = { $lt: cursor };

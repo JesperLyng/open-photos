@@ -20,14 +20,13 @@ export function UploadPanel({
 }: UploadPanelProps) {
   const counts = uploads.reduce(
     (acc, item) => {
-      if (item.status === "done" || item.status === "duplicate" || item.status === "cancelled") {
+      if (item.status === "done" || item.status === "duplicate" || item.status === "cancelled" || item.status === "error") {
         acc.completed += 1;
       }
-      else if (item.status === "error") acc.failed += 1;
       else acc.active += 1;
       return acc;
     },
-    { active: 0, completed: 0, failed: 0 },
+    { active: 0, completed: 0 },
   );
 
   return (
@@ -52,10 +51,9 @@ export function UploadPanel({
             </button>
           </div>
         </div>
-        {(counts.active > 0 || counts.completed > 0 || counts.failed > 0) && (
+        {(counts.active > 0 || counts.completed > 0) && (
           <div className="upload-count">
             {counts.active} active · {counts.completed} done
-            {counts.failed > 0 ? ` · ${counts.failed} failed` : ""}
           </div>
         )}
       </div>

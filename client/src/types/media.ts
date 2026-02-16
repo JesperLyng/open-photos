@@ -37,6 +37,7 @@ export type UploadItem = {
   status: UploadStatus;
   error?: string;
   progress?: number;
+  assetId?: string;
 };
 
 export type LayoutTile = {

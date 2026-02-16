@@ -18,7 +18,10 @@
       "Bash(node scripts/run-with-env.mjs:*)",
       "Bash(xargs ls:*)",
       "Bash(powershell -File:*)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:open-photos-us-cdwhfh.us1.zitadel.cloud)",
+      "Bash(npx --workspace client tsc:*)",
+      "Bash(npx:*)"
     ]
   }
 }

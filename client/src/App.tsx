@@ -41,6 +41,7 @@ function App() {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridWidth = useElementWidth(gridRef);
+  const onAssetFailedRef = useRef<((assetId: string) => void) | undefined>();
 
   const {
     library,
@@ -53,7 +54,7 @@ function App() {
     fetchAsset,
     applyTagsToLibrary,
     applyFavoritesToLibrary,
-  } = useLibrary({ auth, gridWidth, filter: activeFilter });
+  } = useLibrary({ auth, gridWidth, filter: activeFilter, onAssetFailedRef });
 
   const {
     viewerRef,
@@ -126,7 +127,9 @@ function App() {
     handleUploadInput,
     handleCancelUpload,
     handleCancelAll,
+    markAssetFailed,
   } = useUploads({ auth, refreshLibrary });
+  onAssetFailedRef.current = markAssetFailed;
 
   const [isDragging, setIsDragging] = useState(false);
   const selectionFavoriteActive =
@@ -877,7 +880,8 @@ function App() {
                 (item) =>
                   item.status !== "done" &&
                   item.status !== "duplicate" &&
-                  item.status !== "cancelled",
+                  item.status !== "cancelled" &&
+                  item.status !== "error",
               ),
             )
           }

@@ -1,3 +1,4 @@
+import type { MutableRefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { groupByDate } from "../lib/layout";
 import type { DateGroup, LibraryItem } from "../types/media";
@@ -15,9 +16,10 @@ type UseLibraryParams = {
   auth: AuthState;
   gridWidth: number;
   filter: { from: string; to: string; tags: string; favoriteOnly: boolean; albumId: string | null };
+  onAssetFailedRef?: MutableRefObject<((assetId: string) => void) | undefined>;
 };
 
-export function useLibrary({ auth, gridWidth, filter }: UseLibraryParams) {
+export function useLibrary({ auth, gridWidth, filter, onAssetFailedRef }: UseLibraryParams) {
   const [library, setLibrary] = useState<LibraryState>({ status: "idle", items: [] });
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -159,6 +161,13 @@ export function useLibrary({ auth, gridWidth, filter }: UseLibraryParams) {
             ...prev,
             items: prev.items.map((item) => (item.id === updated.id ? updated : item)),
           }));
+        }
+        if (message.type === "asset_failed") {
+          setLibrary((prev) => ({
+            ...prev,
+            items: prev.items.filter((item) => item.id !== message.assetId),
+          }));
+          onAssetFailedRef?.current?.(message.assetId);
         }
       } catch {
         // ignore

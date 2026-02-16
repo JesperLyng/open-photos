@@ -17,6 +17,7 @@ export const userManager = new UserManager({
   post_logout_redirect_uri: postLogoutRedirectUri,
   response_type: "code",
   scope,
+  loadUserInfo: false,
   automaticSilentRenew: true,
   userStore: new WebStorageStateStore({ store: window.localStorage }),
 });

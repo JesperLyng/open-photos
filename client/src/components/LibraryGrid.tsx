@@ -43,6 +43,24 @@ type LibraryGridProps = {
   toggleSelect: (index: number, event: MouseEvent) => void;
 };
 
+function isPortraitForGrid(item: LibraryItem): boolean {
+  const derivedWidth = item.derived?.small?.width;
+  const derivedHeight = item.derived?.small?.height;
+  if (derivedWidth && derivedHeight) {
+    return derivedHeight > derivedWidth;
+  }
+
+  const width = item.metadata?.width;
+  const height = item.metadata?.height;
+  if (!width || !height) return false;
+
+  const orientation = item.metadata?.orientation;
+  const rotated = Boolean(orientation && [5, 6, 7, 8].includes(orientation));
+  const displayWidth = rotated ? height : width;
+  const displayHeight = rotated ? width : height;
+  return displayHeight > displayWidth;
+}
+
 export const LibraryGrid = memo(function LibraryGrid({
   gridRef,
   authStatus,
@@ -194,59 +212,73 @@ export const LibraryGrid = memo(function LibraryGrid({
               <div className="year-header">{group.label}</div>
               <div className="grid-frame">
                 <div className="photo-grid">
-                  {group.rows.map((row, rowIndex) => (
-                    <div
-                      key={`${group.key}-${rowIndex}`}
-                      className="photo-row"
-                      style={
-                        {
-                          "--row-height": `${Math.max(155, Math.round(row.height))}px`,
-                        } as CSSProperties
-                      }
-                    >
-                      {row.tiles.map((tile) => {
-                        const globalIndex = indexById.get(tile.item.id);
-                        if (globalIndex === undefined) return null;
-                        return (
-                          <button
-                            key={tile.item.id}
-                            type="button"
-                            className={`photo-tile ${
-                              selection.has(tile.item.id) ? "selected" : ""
-                            }`}
-                            style={{ width: tile.width, height: tile.height }}
-                            onClick={(event) => toggleSelect(globalIndex, event)}
-                          >
-                            {tile.item.thumbUrl ? (
-                              <img
-                                className="photo-img"
-                                src={tile.item.thumbUrl}
-                                alt={tile.item.filename || "asset"}
-                                loading="lazy"
-                                decoding="async"
-                                fetchPriority="low"
-                              />
-                            ) : (
-                              <div className="photo-img placeholder" />
-                            )}
-                            {tile.item.favorite && (
-                              <span className="photo-favorite" aria-label="Favorite">
-                                <svg className="heart-icon" viewBox="0 0 24 24" aria-hidden="true">
-                                  <path
-                                    d="M12 20.5l-1.4-1.3C6.2 15.3 3 12.4 3 8.9 3 6.6 4.8 5 7 5c1.5 0 3 .7 4 1.9C12 5.7 13.5 5 15 5c2.2 0 4 1.6 4 3.9 0 3.5-3.2 6.4-7.6 10.3L12 20.5z"
-                                    fill="currentColor"
-                                  />
-                                </svg>
-                              </span>
-                            )}
-                            {tile.item.status !== "ready" && (
-                              <div className="photo-status">{tile.item.status}</div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))}
+                  {group.rows.map((row, rowIndex) => {
+                    const rowHasPortrait = row.tiles.some((tile) =>
+                      isPortraitForGrid(tile.item),
+                    );
+                    const firstRowBoost = rowIndex === 0 ? 4 : 0;
+                    const rowHeightPx =
+                      Math.max(164, Math.round(row.height)) +
+                      (rowHasPortrait ? 2 : 0) +
+                      firstRowBoost;
+
+                    return (
+                      <div
+                        key={`${group.key}-${rowIndex}`}
+                        className="photo-row"
+                        style={
+                          {
+                            "--row-height": `${rowHeightPx}px`,
+                          } as CSSProperties
+                        }
+                      >
+                        {row.tiles.map((tile) => {
+                          const globalIndex = indexById.get(tile.item.id);
+                          if (globalIndex === undefined) return null;
+                          const isPortrait = isPortraitForGrid(tile.item);
+                          const tileHeight =
+                            Math.round(tile.height) + (isPortrait ? 2 : 0) + firstRowBoost;
+                          return (
+                            <button
+                              key={tile.item.id}
+                              type="button"
+                              className={`photo-tile ${
+                                selection.has(tile.item.id) ? "selected" : ""
+                              }`}
+                              style={{ width: tile.width, height: tileHeight }}
+                              onClick={(event) => toggleSelect(globalIndex, event)}
+                            >
+                              {tile.item.thumbUrl ? (
+                                <img
+                                  className="photo-img"
+                                  src={tile.item.thumbUrl}
+                                  alt={tile.item.filename || "asset"}
+                                  loading="lazy"
+                                  decoding="async"
+                                  fetchPriority="low"
+                                />
+                              ) : (
+                                <div className="photo-img placeholder" />
+                              )}
+                              {tile.item.favorite && (
+                                <span className="photo-favorite" aria-label="Favorite">
+                                  <svg className="heart-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path
+                                      d="M12 20.5l-1.4-1.3C6.2 15.3 3 12.4 3 8.9 3 6.6 4.8 5 7 5c1.5 0 3 .7 4 1.9C12 5.7 13.5 5 15 5c2.2 0 4 1.6 4 3.9 0 3.5-3.2 6.4-7.6 10.3L12 20.5z"
+                                      fill="currentColor"
+                                    />
+                                  </svg>
+                                </span>
+                              )}
+                              {tile.item.status !== "ready" && (
+                                <div className="photo-status">{tile.item.status}</div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
